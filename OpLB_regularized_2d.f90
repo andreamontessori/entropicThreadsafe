@@ -666,6 +666,9 @@ program lb_openacc
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!to do : usare 1 distribuzione, eliminare tutti gli fneq nella regolarizzaione, 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!macropscopiche in un array solo, modulo prints, modulo vars2D, 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!se possibile modulo con subs a chiusura
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!definizione equilibri entropici
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!newton-raphson per algoritmo di ricerca omega locale
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!benchmark: canale piatto turbolento, isotropic turbulence,
     integer :: i,j,ll,l,dumm
     integer :: nx,ny,step,stamp,nlinks,nsteps,ngpus
     integer :: istat,iframe
