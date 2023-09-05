@@ -680,7 +680,7 @@ program lb_openacc
     
     real(kind=4)  :: ts1,ts2 
     real(kind=db) :: visc_LB,uu,udotc,omega,feq
-    real(kind=db) :: fneq1,fneq2,fneq3,fneq4,fneq5,fneq6,fneq7,fneq8
+    real(kind=db) :: fneq1
     real(kind=db) :: qxx,qyy,qxy5_7,qxy6_8,pi2cssq1,pi2cssq2,pi2cssq0
     real(kind=db) :: tau,one_ov_nu,cssq,fx,fy,temp,dummy
     
@@ -688,7 +688,7 @@ program lb_openacc
     
     real(kind=db), allocatable, dimension(:)     :: p
     real(kind=db), allocatable, dimension(:,:) :: rho,u,v,pxx,pyy,pxy
-    real(kind=db), allocatable, dimension(:,:) :: f0,f1,f2,f3,f4,f5,f6,f7,f8
+    real(kind=db), allocatable, dimension(:,:,:) :: f
     real(kind=db) :: mymemory,totmemory
     !$if _OPENACC
     integer :: devNum
@@ -709,7 +709,7 @@ program lb_openacc
 #endif
 
     !*******************************user parameters**************************
-    lpbc=.false.
+    lpbc=.true.
     lprint=.false.
     lvtk=.true.
     lasync=.true.
@@ -720,8 +720,7 @@ program lb_openacc
     fx=0.0_db*10.0**(-7)
     fy=0.0_db*10.0**(-8)
     allocate(p(0:nlinks))
-    allocate(f0(0:nx+1,0:ny+1),f1(0:nx+1,0:ny+1),f2(0:nx+1,0:ny+1),f3(0:nx+1,0:ny+1),f4(0:nx+1,0:ny+1))
-    allocate(f5(0:nx+1,0:ny+1),f6(0:nx+1,0:ny+1),f7(0:nx+1,0:ny+1),f8(0:nx+1,0:ny+1))
+    allocate(f(0:nx+1,0:ny+1,0:8))
     allocate(rho(1:nx,1:ny),u(1:nx,1:ny),v(1:nx,1:ny),pxx(1:nx,1:ny),pyy(1:nx,1:ny),pxy(1:nx,1:ny))
     allocate(isfluid(1:nx,1:ny)) !,omega_2d(1:nx,1:ny)) 
     if(lprint)then
@@ -757,15 +756,15 @@ program lb_openacc
     v=0.0_db
     rho=1.0_db     !rho!
     !do ll=0,nlinks
-    f0(1:nx,1:ny)=p(0)*rho(:,:)!0.0_db
-    f1(1:nx,1:ny)=p(1)*rho(:,:)
-    f2(1:nx,1:ny)=p(2)*rho(:,:)
-    f3(1:nx,1:ny)=p(3)*rho(:,:)
-    f4(1:nx,1:ny)=p(4)*rho(:,:)
-    f5(1:nx,1:ny)=p(5)*rho(:,:)
-    f6(1:nx,1:ny)=p(6)*rho(:,:)
-    f7(1:nx,1:ny)=p(7)*rho(:,:)
-    f8(1:nx,1:ny)=p(8)*rho(:,:)
+    f(1:nx,1:ny,0)=p(0)*rho(:,:)!0.0_db
+    f(1:nx,1:ny,1)=p(1)*rho(:,:)
+    f(1:nx,1:ny,2)=p(2)*rho(:,:)
+    f(1:nx,1:ny,3)=p(3)*rho(:,:)
+    f(1:nx,1:ny,4)=p(4)*rho(:,:)
+    f(1:nx,1:ny,5)=p(5)*rho(:,:)
+    f(1:nx,1:ny,6)=p(6)*rho(:,:)
+    f(1:nx,1:ny,7)=p(7)*rho(:,:)
+    f(1:nx,1:ny,8)=p(8)*rho(:,:)
     !enddo
     !*************************************check data ************************ 
     write(6,*) '*******************LB data*****************'
@@ -788,7 +787,7 @@ program lb_openacc
     write(6,*) '*******************************************'
 
 
-    !$acc data copy(p,rho,u,v,pxx,pxy,pyy,f0,f1,f2,f3,f4,f5,f6,f7,f8,isfluid,rhoprint,velprint) async(1)
+    !$acc data copy(p,rho,u,v,pxx,pxy,pyy,f,isfluid,rhoprint,velprint) async(1)
     !$if _OPENACC        
     call printDeviceProperties(ngpus,devNum,devType,6)
     !$endif
@@ -832,39 +831,51 @@ program lb_openacc
     do step=1,nsteps 
         !***********************************moment + neq pressor*********
         !$acc kernels async(1)
-        !$acc loop collapse(2) private(uu,temp,udotc,fneq1,fneq2,fneq3,fneq4,fneq5,fneq6,fneq7,fneq8) 
+        !$acc loop collapse(2) private(uu,temp,udotc,fneq1) 
         do j=1,ny
             do i=1,nx
                 if(isfluid(i,j).eq.1)then
-                    rho(i,j) = f0(i,j)+f1(i,j)+f2(i,j)+f3(i,j)+f4(i,j)+f5(i,j)+f6(i,j)+f7(i,j)+f8(i,j)
-                    u(i,j) = (f1(i,j) +f5(i,j) +f8(i,j)-f3(i,j) -f6(i,j) -f7(i,j)) !/rho(i,j)
-                    v(i,j) = (f5(i,j) +f2(i,j) +f6(i,j)-f7(i,j) -f4(i,j) -f8(i,j))
+                    rho(i,j) = f(i,j,0)+f(i,j,1)+f(i,j,2)+f(i,j,3)+f(i,j,4)+f(i,j,5)+f(i,j,6)+f(i,j,7)+f(i,j,8)
+                    u(i,j) = (f(i,j,1) +f(i,j,5) +f(i,j,8)-f(i,j,3) -f(i,j,6) -f(i,j,7)) !/rho(i,j)
+                    v(i,j) = (f(i,j,5) +f(i,j,2) +f(i,j,6)-f(i,j,7) -f(i,j,4) -f(i,j,8))
                     ! non equilibrium pressor components
                     uu=0.5_db*(u(i,j)*u(i,j) + v(i,j)*v(i,j))/cssq
                     !1-3
                     udotc=u(i,j)/cssq
                     temp = -uu + 0.5_db*udotc*udotc
-                    fneq1=f1(i,j)-p(1)*(rho(i,j)+(temp + udotc))
-                    fneq3=f3(i,j)-p(3)*(rho(i,j)+(temp - udotc))
+                    fneq1=f(i,j,1)-p(1)*(rho(i,j)+(temp + udotc))
+                    pxx(i,j)=pxx(i,j)+fneq1
+                    fneq1=f(i,j,3)-p(3)*(rho(i,j)+(temp - udotc))
+                    pxx(i,j)=pxx(i,j)+fneq1
                     !2-4
                     udotc=v(i,j)/cssq
                     temp = -uu + 0.5_db*udotc*udotc
-                    fneq2=f2(i,j)-p(2)*(rho(i,j)+(temp + udotc))
-                    fneq4=f4(i,j)-p(4)*(rho(i,j)+(temp - udotc))
+                    fneq1=f(i,j,2)-p(2)*(rho(i,j)+(temp + udotc))
+                    pyy(i,j)=pyy(i,j)+fneq1
+                    fneq1=f(i,j,4)-p(4)*(rho(i,j)+(temp - udotc))
+                    pyy(i,j)=pyy(i,j)+fneq1
                     !5-7
                     udotc=(u(i,j)+v(i,j))/cssq
                     temp = -uu + 0.5_db*udotc*udotc
-                    fneq5=f5(i,j)-p(5)*(rho(i,j)+(temp + udotc))
-                    fneq7=f7(i,j)-p(7)*(rho(i,j)+(temp - udotc))
+                    fneq1=f(i,j,5)-p(5)*(rho(i,j)+(temp + udotc))
+                    pxx(i,j)=pxx(i,j)+fneq1
+                    pyy(i,j)=pyy(i,j)+fneq1
+                    pxy(i,j)=pxy(i,j)+fneq1
+                    fneq1=f(i,j,7)-p(7)*(rho(i,j)+(temp - udotc))
+                    pxx(i,j)=pxx(i,j)+fneq1
+                    pyy(i,j)=pyy(i,j)+fneq1
+                    pxy(i,j)=pxy(i,j)+fneq1
                     !6-8
                     udotc=(-u(i,j)+v(i,j))/cssq
                     temp = -uu + 0.5_db*udotc*udotc
-                    fneq6=f6(i,j)-p(6)*(rho(i,j)+(temp + udotc))
-                    fneq8=f8(i,j)-p(8)*(rho(i,j)+(temp - udotc))
-
-                    pxx(i,j)= fneq1 + fneq3 + fneq5 + fneq6 + fneq7 + fneq8
-                    pyy(i,j)= fneq2 + fneq4 + fneq5 + fneq6 + fneq7 + fneq8
-                    pxy(i,j)= fneq5 - fneq6 + fneq7 - fneq8
+                    fneq1=f(i,j,6)-p(6)*(rho(i,j)+(temp + udotc))
+                    pxx(i,j)=pxx(i,j)+fneq1
+                    pyy(i,j)=pyy(i,j)+fneq1
+                    pxy(i,j)=pxy(i,j)-fneq1
+                    fneq1=f(i,j,8)-p(8)*(rho(i,j)+(temp - udotc))
+                    pxx(i,j)=pxx(i,j)+fneq1
+                    pyy(i,j)=pyy(i,j)+fneq1
+                    pxy(i,j)=pxy(i,j)-fneq1
                 endif
             enddo 
         enddo
@@ -921,38 +932,38 @@ program lb_openacc
                         !oneminusuu= -uu !1.0_db - uu
                         !0
                         feq=p(0)*(rho(i,j)-uu)
-                        f0(i,j)=feq + (1.0_db-omega)*pi2cssq0*(-cssq*pxx(i,j)-cssq*pyy(i,j))
+                        f(i,j,0)=feq + (1.0_db-omega)*pi2cssq0*(-cssq*pxx(i,j)-cssq*pyy(i,j))
                         !1
                         udotc=u(i,j)/cssq
                         temp = -uu + 0.5_db*udotc*udotc
                         feq=p(1)*(rho(i,j)+(temp + udotc))
-                        f1(i+1,j)= feq + (1.0_db-omega)*pi2cssq1*((1.0_db-cssq)*pxx(i,j)-cssq*pyy(i,j)) + fx*p(1)/cssq 
+                        f(i+1,j,1)= feq + (1.0_db-omega)*pi2cssq1*((1.0_db-cssq)*pxx(i,j)-cssq*pyy(i,j)) + fx*p(1)/cssq 
                         !3
                         feq=p(3)*(rho(i,j)+(temp - udotc))
-                        f3(i-1,j)= feq + (1.0_db-omega)*pi2cssq1*((1.0_db-cssq)*pxx(i,j)-cssq*pyy(i,j))  - fx*p(3)/cssq 
+                        f(i-1,j,3)= feq + (1.0_db-omega)*pi2cssq1*((1.0_db-cssq)*pxx(i,j)-cssq*pyy(i,j))  - fx*p(3)/cssq 
                         !2
                         udotc=v(i,j)/cssq
                         temp = -uu + 0.5_db*udotc*udotc
                         feq=p(2)*(rho(i,j)+(temp + udotc))
-                        f2(i,j+1)= feq + (1.0_db-omega)*pi2cssq1*((1.0_db-cssq)*pyy(i,j)-cssq*pxx(i,j))  + fy*p(2)/cssq 
+                        f(i,j+1,2)= feq + (1.0_db-omega)*pi2cssq1*((1.0_db-cssq)*pyy(i,j)-cssq*pxx(i,j))  + fy*p(2)/cssq 
                         !4
                         feq=p(4)*(rho(i,j)+(temp - udotc))
-                        f4(i,j-1)= feq + (1.0_db-omega)*pi2cssq1*((1.0_db-cssq)*pyy(i,j)-cssq*pxx(i,j))  - fy*p(4)/cssq 
+                        f(i,j-1,4)= feq + (1.0_db-omega)*pi2cssq1*((1.0_db-cssq)*pyy(i,j)-cssq*pxx(i,j))  - fy*p(4)/cssq 
                         !5
                         udotc=(u(i,j)+v(i,j))/cssq
                         temp = -uu + 0.5_db*udotc*udotc
                         feq=p(5)*(rho(i,j)+(temp + udotc))
-                        f5(i+1,j+1)= feq + (1.0_db-omega)*pi2cssq2*(qxx*pxx(i,j)+qyy*pyy(i,j)+2.0_db*qxy5_7*pxy(i,j)) + fx*p(5)/cssq + fy*p(5)/cssq
+                        f(i+1,j+1,5)= feq + (1.0_db-omega)*pi2cssq2*(qxx*pxx(i,j)+qyy*pyy(i,j)+2.0_db*qxy5_7*pxy(i,j)) + fx*p(5)/cssq + fy*p(5)/cssq
                         feq=p(7)*(rho(i,j)+(temp - udotc))
-                        f7(i-1,j-1)=feq + (1.0_db-omega)*pi2cssq2*(qxx*pxx(i,j)+qyy*pyy(i,j)+2.0_db*qxy5_7*pxy(i,j)) - fx*p(7)/cssq - fy*p(7)/cssq 
+                        f(i-1,j-1,7)=feq + (1.0_db-omega)*pi2cssq2*(qxx*pxx(i,j)+qyy*pyy(i,j)+2.0_db*qxy5_7*pxy(i,j)) - fx*p(7)/cssq - fy*p(7)/cssq 
                         !6
                         udotc=(-u(i,j)+v(i,j))/cssq
                         temp = -uu + 0.5_db*udotc*udotc
                         feq=p(6)*(rho(i,j)+(temp + udotc))
-                        f6(i-1,j+1)= feq + (1.0_db-omega)*pi2cssq2*(qxx*pxx(i,j)+qyy*pyy(i,j)+2.0_db*qxy6_8*pxy(i,j)) - fx*p(6)/cssq + fy*p(6)/cssq 
+                        f(i-1,j+1,6)= feq + (1.0_db-omega)*pi2cssq2*(qxx*pxx(i,j)+qyy*pyy(i,j)+2.0_db*qxy6_8*pxy(i,j)) - fx*p(6)/cssq + fy*p(6)/cssq 
                         !8
                         feq=p(8)*(rho(i,j)+(temp - udotc))
-                        f8(i+1,j-1)=feq + (1.0_db-omega)*pi2cssq2*(qxx*pxx(i,j)+qyy*pyy(i,j)+2.0_db*qxy6_8*pxy(i,j)) + fx*p(8)/cssq - fy*p(8)/cssq 
+                        f(i+1,j-1,8)=feq + (1.0_db-omega)*pi2cssq2*(qxx*pxx(i,j)+qyy*pyy(i,j)+2.0_db*qxy6_8*pxy(i,j)) + fx*p(8)/cssq - fy*p(8)/cssq 
                     endif
                 enddo
             enddo
@@ -963,18 +974,18 @@ program lb_openacc
                 do i=1,nx
                     if(isfluid(i,j).eq.0)then
 
-                        f8(i+1,j-1)=f6(i,j)!gpc 
-                        f7(i-1,j-1)=f5(i,j)!hpc
+                        f(i+1,j-1,8)=f(i,j,6)!gpc 
+                        f(i-1,j-1,7)=f(i,j,5)!hpc
 
-                        f6(i-1,j+1)=f8(i,j)!gpc 
-                        f5(i+1,j+1)=f7(i,j)!hpc 
+                        f(i-1,j+1,6)=f(i,j,8)!gpc 
+                        f(i+1,j+1,5)=f(i,j,7)!hpc 
 
 
-                        f4(i,j-1)=f2(i,j)!gpc 
-                        f3(i-1,j)=f1(i,j)!hpc 
+                        f(i,j-1,4)=f(i,j,2)!gpc 
+                        f(i-1,j,3)=f(i,j,1)!hpc 
 
-                        f2(i,j+1)=f4(i,j)!gpc 
-                        f1(i+1,j)=f3(i,j)!hpc 
+                        f(i,j+1,2)=f(i,j,4)!gpc 
+                        f(i+1,j,1)=f(i,j,3)!hpc 
                     endif
                 enddo
             enddo
@@ -988,24 +999,24 @@ program lb_openacc
               !$acc loop independent 
               do j=2,ny-1
                   if(j>2 .and. j<ny-1)then
-                      f1(2,j)=f1(nx,j)
-                      f5(2,j)=f5(nx,j)
-                      f8(2,j)=f8(nx,j)	
-                      f3(nx-1,j)=f3(1,j)
-                      f6(nx-1,j)=f6(1,j)
-                      f7(nx-1,j)=f7(1,j)
+                      f(2,j,1)=f(nx,j,1)
+                      f(2,j,5)=f(nx,j,5)
+                      f(2,j,8)=f(nx,j,8)	
+                      f(nx-1,j,3)=f(1,j,3)
+                      f(nx-1,j,6)=f(1,j,6)
+                      f(nx-1,j,7)=f(1,j,7)
                   else
                       if(j==2)then
-                          f1(2,j)=f1(nx,j)
-                          f8(2,j)=f8(nx,j)
-                          f3(nx-1,j)=f3(1,j)
-                          f7(nx-1,j)=f7(1,j)
+                          f(2,j,1)=f(nx,j,1)
+                          f(2,j,8)=f(nx,j,8)
+                          f(nx-1,j,3)=f(1,j,3)
+                          f(nx-1,j,7)=f(1,j,7)
                       endif
                       if(j==ny-1)then
-                          f1(2,j)=f1(nx,j)
-                          f5(2,j)=f5(nx,j)
-                          f3(nx-1,j)=f3(1,j)
-                          f6(nx-1,j)=f6(1,j)
+                          f(2,j,1)=f(nx,j,1)
+                          f(2,j,5)=f(nx,j,5)
+                          f(nx-1,j,3)=f(1,j,3)
+                          f(nx-1,j,6)=f(1,j,6)
                       endif
                   endif
               enddo
