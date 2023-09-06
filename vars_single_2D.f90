@@ -15,7 +15,7 @@ module vars
     real(kind=db),parameter :: pi_greek=3.14159265359793234626433
     
     real(kind=4)  :: ts1,ts2 
-    real(kind=db) :: visc_LB,uu,udotc,omega,feq
+    real(kind=db) :: visc_LB,omega,feq,one_pls_usq,one_pls_vsq
     real(kind=db) :: fneq1
     real(kind=db) :: qxx,qyy,qxy5_7,qxy6_8,pi2cssq1,pi2cssq2,pi2cssq0
     real(kind=db) :: tau,one_ov_nu,cssq,fx,fy,temp,dummy
