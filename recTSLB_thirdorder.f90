@@ -40,7 +40,7 @@ program recursiveTSLB
     allocate(p(0:nlinks))
     allocate(f(0:nx+1,0:ny+1,0:8))
     allocate(rho(1:nx,1:ny),u(1:nx,1:ny),v(1:nx,1:ny),pxx(1:nx,1:ny),pyy(1:nx,1:ny),pxy(1:nx,1:ny))
-    allocate(isfluid(1:nx,1:ny),alpha(1:nx,1:ny),deltaS(1:nx,1:ny),limres(1:2)) !,omega_2d(1:nx,1:ny)) 
+    allocate(isfluid(1:nx,1:ny),alpha(1:nx,1:ny)) !,omega_2d(1:nx,1:ny)) 
     if(lprint)then
       allocate(rhoprint(1:nx,1:ny,1:nz))
       allocate(velprint(1:3,1:nx,1:ny,1:nz))

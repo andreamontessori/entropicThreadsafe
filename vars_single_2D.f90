@@ -21,11 +21,10 @@ module vars
     real(kind=db) :: tau,one_ov_nu,cssq,cssq2,cssq3,fx,fy,temp,dummy
     real(kind=db) :: deltasmed
     
-    integer(kind=4),allocatable, dimension(:) :: limres
     integer(kind=4), allocatable,  dimension(:,:)   :: isfluid
     
     real(kind=db), allocatable, dimension(:)     :: p
-    real(kind=db), allocatable, dimension(:,:) :: rho,u,v,pxx,pyy,pxy,deltaS,alpha
+    real(kind=db), allocatable, dimension(:,:) :: rho,u,v,pxx,pyy,pxy,alpha
     real(kind=db), allocatable, dimension(:,:,:) :: f
     real(kind=db) :: mymemory,totmemory
 
