@@ -18,10 +18,8 @@ program recursiveTSLB
     !$endif
        
     nlinks=8 !pari!
-    tau=0.501_db
+    tau=1._db
     cssq=1.0_db/3.0_db
-    cssq2=cssq**2
-    cssq3=cssq**3
     visc_LB=cssq*(tau-0.5_db)
     one_ov_nu=1.0_db/visc_LB
 #ifdef _OPENACC
@@ -31,16 +29,16 @@ program recursiveTSLB
 #endif
 
     !*******************************user parameters**************************
-    nx=4096
-    ny=128
-    nsteps=200000
-    stamp=200000
+    nx=64
+    ny=64
+    nsteps=2000000
+    stamp=2000000
     fx=1.0_db*10.0**(-6)
     fy=0.0_db
     allocate(p(0:nlinks))
     allocate(f(0:nx+1,0:ny+1,0:8))
     allocate(rho(1:nx,1:ny),u(1:nx,1:ny),v(1:nx,1:ny),pxx(1:nx,1:ny),pyy(1:nx,1:ny),pxy(1:nx,1:ny))
-    allocate(isfluid(1:nx,1:ny),alpha(1:nx,1:ny)) !,omega_2d(1:nx,1:ny)) 
+    allocate(isfluid(1:nx,1:ny)) !,omega_2d(1:nx,1:ny)) 
     if(lprint)then
       allocate(rhoprint(1:nx,1:ny,1:nz))
       allocate(velprint(1:3,1:nx,1:ny,1:nz))
@@ -53,13 +51,6 @@ program recursiveTSLB
     p=(/4.0_db/9.0_db,1.0_db/9.0_db,1.0_db/9.0_db,1.0_db/9.0_db,1.0_db/9.0_db,1.0_db/36.0_db, &
     1.0_db/36.0_db,1.0_db/36.0_db,1.0_db/36.0_db/)
     omega=1.0_db/tau
-
-    ! regularized: hermite 
-    qxx=1.0_db-cssq
-    qyy=1.0_db-cssq
-    qxy5_7=1.0_db
-    qxy6_8=-1.0_db
-    pi2cssq0=p(0)/(2.0_db*cssq**2)
     
     !*****************************************geometry************************
     isfluid=1
@@ -104,7 +95,7 @@ program recursiveTSLB
     write(6,*) '*******************************************'
 
 
-    !$acc data copy(p,rho,u,v,pxx,pxy,pyy,f,isfluid,rhoprint,velprint,alpha,limres) async(1)
+    !$acc data copy(p,rho,u,v,pxx,pxy,pyy,f,isfluid,rhoprint,velprint) async(1)
     !$if _OPENACC        
     call printDeviceProperties(ngpus,devNum,devType,6)
     !$endif
@@ -148,7 +139,7 @@ program recursiveTSLB
     do step=1,nsteps 
         !***********************************moment + neq pressor*********
         !$acc kernels async(1)
-        !$acc loop collapse(2) private(fneq1,feq,uu,udotc) 
+        !$acc loop collapse(2) private(fneq1,feq) 
         do j=1,ny
             do i=1,nx
                 if(isfluid(i,j).eq.1)then
@@ -160,42 +151,37 @@ program recursiveTSLB
                     v(i,j) = (f(i,j,5) +f(i,j,2) +f(i,j,6)-(f(i,j,7) +f(i,j,4) +f(i,j,8)))/rho(i,j)
                     ! non equilibrium pressor components
                     !1-3
-                    udotc=u(i,j)
-                    uu=(u(i,j)*u(i,j)+v(i,j)*v(i,j))*cssq
-                    feq=p(1)*rho(i,j)*(1.0_db + udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 + udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                    feq=p(1)*rho(i,j)*0.5_db*(2.0_db+6.0_db*u(i,j)**2 - 3.0_db*v(i,j)**2+u(i,j)*(6.0_db-9.0_db*v(i,j)**2))
                     fneq1=f(i,j,1)-feq
                     pxx(i,j)=pxx(i,j)+fneq1
-                    feq=p(3)*rho(i,j)*(1.0_db - udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 - udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                    feq=p(3)*rho(i,j)*0.5_db*(2.0_db+6.0_db*u(i,j)**2 - 3.0_db*v(i,j)**2+u(i,j)*(-6.0_db+9.0_db*v(i,j)**2))
                     fneq1=f(i,j,3)-feq
                     pxx(i,j)=pxx(i,j)+fneq1
                     !2-4
-                    udotc=v(i,j)
-                    feq=p(2)*rho(i,j)*(1.0_db + udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 + udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                    feq=p(2)*rho(i,j)*0.5_db*(2.0_db + 6.0_db*v(i,j) + 6.0_db*v(i,j)**2-3.0_db*u(i,j)**2*(1.0_db+3.0_db*v(i,j)))
                     fneq1=f(i,j,2)-feq
                     pyy(i,j)=pyy(i,j)+fneq1
-                    feq=p(4)*rho(i,j)*(1.0_db - udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 - udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                    feq=p(4)*rho(i,j)*0.5_db*(2.0_db - 6.0_db*v(i,j) + 6.0_db*v(i,j)**2 + u(i,j)**2*(-3.0_db+9.0_db*v(i,j)))
                     fneq1=f(i,j,4)-feq
                     pyy(i,j)=pyy(i,j)+fneq1
                     !5-7
-                    udotc=u(i,j)+v(i,j)
-                    feq=p(5)*rho(i,j)*(1.0_db + udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 + udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                    feq=p(5)*rho(i,j)*(1.0_db + 3.0_db*v(i,j) + 3.0_db*v(i,j)**2 + u(i,j)**2*(3.0_db+9.0_db*v(i,j)) + u(i,j)*(3.0_db+9.0_db*v(i,j)+9.0_db*v(i,j)**2))
                     fneq1=f(i,j,5)- feq
                     pxx(i,j)=pxx(i,j)+fneq1
                     pyy(i,j)=pyy(i,j)+fneq1
                     pxy(i,j)=pxy(i,j)+fneq1
-                    feq=p(7)*rho(i,j)*(1.0_db - udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 - udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                    feq=-p(7)*rho(i,j)*(-1.0_db+3.0_db*v(i,j) - 3.0_db*v(i,j)**2 + u(i,j)**2*(-3.0_db+9.0_db*v(i,j)) + u(i,j)*(3.0_db-9.0_db*v(i,j)+9.0_db*v(i,j)**2))
                     fneq1=f(i,j,7)- feq
                     pxx(i,j)=pxx(i,j)+fneq1
                     pyy(i,j)=pyy(i,j)+fneq1
                     pxy(i,j)=pxy(i,j)+fneq1
                     !6-8
-                    udotc=-u(i,j)+v(i,j)
-                    feq=p(6)*rho(i,j)*(1.0_db + udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 + udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                    feq=p(6)*rho(i,j)*(1.0_db + 3.0_db*v(i,j) + 3.0_db*v(i,j)**2 + u(i,j)**2*(3.0_db+9.0_db*v(i,j)) - 3.0_db*u(i,j)*(1.0_db+3.0_db*v(i,j)+3.0_db*v(i,j)**2))
                     fneq1=f(i,j,6)-feq
                     pxx(i,j)=pxx(i,j)+fneq1
                     pyy(i,j)=pyy(i,j)+fneq1
                     pxy(i,j)=pxy(i,j)-fneq1
-                    feq=p(8)*rho(i,j)*(1.0_db - udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 - udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                    feq=p(8)*rho(i,j)*(1.0_db + u(i,j)**2*(3.0_db-9.0_db*v(i,j)) - 3.0_db*v(i,j)+3.0_db*v(i,j)**2 + u(i,j)*(3.0_db-9.0_db*v(i,j)+9.0_db*v(i,j)**2))
                     fneq1=f(i,j,8)-feq
                     pxx(i,j)=pxx(i,j)+fneq1
                     pyy(i,j)=pyy(i,j)+fneq1
@@ -252,44 +238,40 @@ program recursiveTSLB
                     if(isfluid(i,j).eq.1)then   
                         !oneminusuu= -uu !1.0_db - uu
                         !0
-                        uu=(u(i,j)*u(i,j)+v(i,j)*v(i,j))*cssq
-                        a2xxy=2.0_db*u(i,j)*pxy(i,j)+pxx(i,j)*v(i,j)
-                        a2yyx=u(i,j)*pyy(i,j) + 2.0_db*v(i,j)*pxy(i,j)
-                        !0
-                        feq=p(0)*rho(i,j)*(1.0_db - 0.5_db*uu/cssq2)
-                        f(i,j,0)=feq + (1.0_db-omega)*pi2cssq0*(-cssq*pxx(i,j)-cssq*pyy(i,j))
+                        feq=p(0)*rho(i,j)*(1.0_db -3.0_db*0.5_db*(u(i,j)**2+v(i,j)**2))
+                        fneq1=-3.0_db*0.5_db*(pxx(i,j)+pyy(i,j))
+                        f(i,j,0)=feq + (1.0_db-omega)*p(0)*fneq1
                         !1
-                        udotc=u(i,j)
-                        fneq1=((1.0_db-cssq)*pxx(i,j)-cssq*pyy(i,j))/(2.0_db*cssq2)
-                        feq=p(1)*rho(i,j)*(1.0_db + udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 + udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                        fneq1=3.0_db*pxx(i,j)-1.5_db*(pyy(i,j) + 3.0_db*pyy(i,j)*u(i,j)+6.0_db*pxy(i,j)*v(i,j))
+                        feq=p(1)*rho(i,j)*0.5_db*(2.0_db+6.0_db*u(i,j)**2 - 3.0_db*v(i,j)**2+u(i,j)*(6.0_db-9.0_db*v(i,j)**2))
                         f(i+1,j,1)= feq + (1.0_db-omega)*p(1)*fneq1 + fx*p(1)/cssq 
                         !3
-                        feq=p(3)*rho(i,j)*(1.0_db - udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 - udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                        feq=p(3)*rho(i,j)*0.5_db*(2.0_db+6.0_db*u(i,j)**2 - 3.0_db*v(i,j)**2+u(i,j)*(-6.0_db+9.0_db*v(i,j)**2))
+                        fneq1=3.0_db*pxx(i,j) + 1.5_db*pyy(i,j)*(-1.0_db+3.0_db*u(i,j)) + 9.0_db*pxy(i,j)*v(i,j)
                         f(i-1,j,3)= feq + (1.0_db-omega)*p(3)*fneq1  - fx*p(3)/cssq 
                         !2
-                        udotc=v(i,j)
-                        fneq1=((1.0_db-cssq)*pyy(i,j)-cssq*pxx(i,j))/(2.0_db*cssq2)
-                        feq=p(2)*rho(i,j)*(1.0_db + udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 + udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                        fneq1=-1.5_db*(pxx(i,j) - 2.0_db*pyy(i,j) + 6.0_db*pxy(i,j)*u(i,j) +3.0_db*pxx(i,j)*v(i,j))
+                        feq=p(2)*rho(i,j)*0.5_db*(2.0_db + 6.0_db*v(i,j) + 6.0_db*v(i,j)**2-3.0_db*u(i,j)**2*(1.0_db+3.0_db*v(i,j)))
                         f(i,j+1,2)= feq + (1.0_db-omega)*p(2)*fneq1  + fy*p(2)/cssq 
                         !4
-                        feq=p(4)*rho(i,j)*(1.0_db - udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 - udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                        feq=p(4)*rho(i,j)*0.5_db*(2.0_db - 6.0_db*v(i,j) + 6.0_db*v(i,j)**2 + u(i,j)**2*(-3.0_db+9.0_db*v(i,j)))
+                        fneq1=1.5_db*(-pxx(i,j) + 2.0_db*pyy(i,j) + 6.0_db*pxy(i,j)*u(i,j) + 3.0_db*pxx(i,j)*v(i,j))
                         f(i,j-1,4)= feq + (1.0_db-omega)*p(4)*fneq1  - fy*p(4)/cssq 
                         !5
-                        udotc=u(i,j)+v(i,j)
-                        fneq1=(qxx*pxx(i,j)+qyy*pyy(i,j)+2.0_db*qxy5_7*pxy(i,j))/(2.0_db*cssq2) + ((a2xxy+a2yyx)*(1.0_db-3.0_db*cssq))/(6.0_db*cssq3)
-                        feq=p(5)*rho(i,j)*(1.0_db + udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 + udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                        fneq1=3.0_db*(pxx(i,j) + pyy(i,j) + 3.0_db*pyy(i,j)*u(i,j) + 3.0_db*pxx(i,j)*v(i,j) + pxy(i,j)*(3.0_db+6.0_db*u(i,j)+6.0_db*v(i,j)))
+                        feq=p(5)*rho(i,j)*(1.0_db + 3.0_db*v(i,j) + 3.0_db*v(i,j)**2 + u(i,j)**2*(3.0_db+9.0_db*v(i,j)) + u(i,j)*(3.0_db+9.0_db*v(i,j)+9.0_db*v(i,j)**2))
                         f(i+1,j+1,5)= feq + (1.0_db-omega)*p(5)*fneq1 + fx*p(5)/cssq + fy*p(5)/cssq
                         !7
-                        feq=p(7)*rho(i,j)*(1.0_db - udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 - udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                        fneq1=-3.0_db*(pyy(i,j)*(-1.0_db + 3.0_db*u(i,j)) + pxx(i,j)*(-1.0_db+3.0_db*v(i,j)) + pxy(i,j)*(-3.0_db+6.0_db*u(i,j)+6.0_db*v(i,j)))
+                        feq=-p(7)*rho(i,j)*(-1.0_db+3.0_db*v(i,j) - 3.0_db*v(i,j)**2 + u(i,j)**2*(-3.0_db+9.0_db*v(i,j)) + u(i,j)*(3.0_db-9.0_db*v(i,j)+9.0_db*v(i,j)**2))
                         f(i-1,j-1,7)=feq + (1.0_db-omega)*p(7)*fneq1 - fx*p(7)/cssq - fy*p(7)/cssq 
                         !6
-                        udotc=-u(i,j)+v(i,j)
-                        fneq1=(qxx*pxx(i,j)+qyy*pyy(i,j)+2.0_db*qxy6_8*pxy(i,j))/(2.0_db*cssq2)+ ((a2xxy-a2yyx)*(1.0_db-3.0_db*cssq))/(6.0_db*cssq3)
-                        feq=p(6)*rho(i,j)*(1.0_db + udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 + udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                        fneq1=3.0_db*(pxx(i,j)+pyy(i,j)-3.0_db*pyy(i,j)*u(i,j)+pxy(i,j)*(-3.0_db+6.0_db*u(i,j)-6.0_db*v(i,j))+3.0_db*pxx(i,j)*v(i,j))  
+                        feq=p(6)*rho(i,j)*(1.0_db + 3.0_db*v(i,j) + 3.0_db*v(i,j)**2 + u(i,j)**2*(3.0_db+9.0_db*v(i,j)) - 3.0_db*u(i,j)*(1.0_db+3.0_db*v(i,j)+3.0_db*v(i,j)**2))
                         f(i-1,j+1,6)= feq + (1.0_db-omega)*p(6)*fneq1 - fx*p(6)/cssq + fy*p(6)/cssq 
                         !8
-                        fneq1=(qxx*pxx(i,j)+qyy*pyy(i,j)+2.0_db*qxy6_8*pxy(i,j))/(2.0_db*cssq2)+ ((-a2xxy+a2yyx)*(1.0_db-3.0_db*cssq))/(6.0_db*cssq3)
-                        feq=p(8)*rho(i,j)*(1.0_db - udotc/cssq + 0.5_db*(udotc*udotc-uu)/cssq2 - udotc*(udotc*udotc-3.0_db*uu)/(6.0_db*cssq3) )
+                        fneq1=3.0_db*(pxx(i,j) + pyy(i,j) + 3.0_db*pyy(i,j)*u(i,j) - 3.0_db*pxx(i,j)*v(i,j) + pxy(i,j)*(-3.0_db-6.0_db*u(i,j)+6.0_db*v(i,j)))
+                        feq=p(8)*rho(i,j)*(1.0_db + u(i,j)**2*(3.0_db-9.0_db*v(i,j)) - 3.0_db*v(i,j)+3.0_db*v(i,j)**2 + u(i,j)*(3.0_db-9.0_db*v(i,j)+9.0_db*v(i,j)**2))
                         f(i+1,j-1,8)=feq + (1.0_db-omega)*p(8)*fneq1 + fx*p(8)/cssq - fy*p(8)/cssq 
                     endif
                 enddo
