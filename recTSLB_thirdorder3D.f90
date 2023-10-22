@@ -15,7 +15,7 @@ program recursiveTSLB3D
     !$endif
 
     nlinks=26 !pari!
-    tau=0.60_db
+    tau=0.6_db
     cssq=1.0_db/3.0_db
     visc_LB=cssq*(tau-0.5_db)
     one_ov_nu=1.0_db/visc_LB
@@ -26,13 +26,13 @@ program recursiveTSLB3D
 #endif
 
     !*******************************user parameters and allocations**************************m
-        nx=256
-        ny=256
-        nz=256
-        nsteps=1000
-        stamp=100000
-        fx=1.0_db*10.0**(-5)
-        fy=0.0_db*10.0**(-5)
+        nx=64
+        ny=64
+        nz=64
+        nsteps=20000
+        stamp=20000
+        fx=0.0_db*10.0**(-5)
+        fy=1.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
         lprint=.true.
         lvtk=.true.
@@ -43,7 +43,7 @@ program recursiveTSLB3D
         allocate(rho(1:nx,1:ny,1:nz),u(1:nx,1:ny,1:nz),v(1:nx,1:ny,1:nz),w(1:nx,1:ny,1:nz))
         allocate(pxx(1:nx,1:ny,1:nz),pxy(1:nx,1:ny,1:nz),pxz(1:nx,1:ny,1:nz),pyy(1:nx,1:ny,1:nz))
         allocate(pyz(1:nx,1:ny,1:nz),pzz(1:nx,1:ny,1:nz))
-        allocate(isfluid(1:nx,1:ny,1:nz)) !,omega_2d(1:nx,1:ny)) 
+        allocate(isfluid(1:nx,1:ny,1:nz))
         if(lprint)then
           allocate(rhoprint(1:nx,1:ny,1:nz))
           allocate(velprint(1:3,1:nx,1:ny,1:nz))
@@ -77,32 +77,15 @@ program recursiveTSLB3D
         rho=1.0_db  !tot dens
         !do ll=0,nlinks
         f(1:nx,1:ny,1:nz,0)=rho(1:nx,1:ny,1:nz)*p0
-        f(1:nx,1:ny,1:nz,1)=rho(1:nx,1:ny,1:nz)*p1
-        f(1:nx,1:ny,1:nz,2)=rho(1:nx,1:ny,1:nz)*p1
-        f(1:nx,1:ny,1:nz,3)=rho(1:nx,1:ny,1:nz)*p1
-        f(1:nx,1:ny,1:nz,4)=rho(1:nx,1:ny,1:nz)*p1
-        f(1:nx,1:ny,1:nz,5)=rho(1:nx,1:ny,1:nz)*p1
-        f(1:nx,1:ny,1:nz,6)=rho(1:nx,1:ny,1:nz)*p1
-        f(1:nx,1:ny,1:nz,7)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,8)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,9)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,10)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,11)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,12)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,13)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,14)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,15)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,16)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,17)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,18)=rho(1:nx,1:ny,1:nz)*p2
-        f(1:nx,1:ny,1:nz,19)=rho(1:nx,1:ny,1:nz)*p3
-        f(1:nx,1:ny,1:nz,20)=rho(1:nx,1:ny,1:nz)*p3
-        f(1:nx,1:ny,1:nz,21)=rho(1:nx,1:ny,1:nz)*p3
-        f(1:nx,1:ny,1:nz,22)=rho(1:nx,1:ny,1:nz)*p3
-        f(1:nx,1:ny,1:nz,23)=rho(1:nx,1:ny,1:nz)*p3
-        f(1:nx,1:ny,1:nz,24)=rho(1:nx,1:ny,1:nz)*p3
-        f(1:nx,1:ny,1:nz,25)=rho(1:nx,1:ny,1:nz)*p3
-        f(1:nx,1:ny,1:nz,26)=rho(1:nx,1:ny,1:nz)*p3
+        do ll=1,6
+          f(1:nx,1:ny,1:nz,ll)=rho(1:nx,1:ny,1:nz)*p1
+        enddo
+        do ll=7,18
+          f(1:nx,1:ny,1:nz,ll)=rho(1:nx,1:ny,1:nz)*p2
+        enddo
+        do ll=19,26
+          f(1:nx,1:ny,1:nz,ll)=rho(1:nx,1:ny,1:nz)*p3
+        enddo
     !enddo
     !*************************************check data ************************ 
         write(6,*) '*******************LB data*****************'
@@ -380,17 +363,29 @@ program recursiveTSLB3D
             do k=1,nz
               do j=1,ny
                 do i=1,nx
-                  rhoprint(i,j,k)=real(rho(i,j,k),kind=4)
-                  velprint(1,i,j,k)=real(u(i,j,k),kind=4)
-                  velprint(2,i,j,k)=real(v(i,j,k),kind=4)
-                  velprint(3,i,j,k)=real(w(i,j,k),kind=4)
+                  if (i==1)then
+                    rhoprint(i,j,k)=real(rho(i+1,j,k),kind=4)
+                    velprint(1,i,j,k)=real(u(i+1,j,k),kind=4)
+                    velprint(2,i,j,k)=real(v(i+1,j,k),kind=4)
+                    velprint(3,i,j,k)=real(w(i+1,j,k),kind=4)
+                  elseif (i==nx)then
+                    rhoprint(i,j,k)=real(rho(i-1,j,k),kind=4)
+                    velprint(1,i,j,k)=real(u(i-1,j,k),kind=4)
+                    velprint(2,i,j,k)=real(v(i-1,j,k),kind=4)
+                    velprint(3,i,j,k)=real(w(i-1,j,k),kind=4)
+                  else
+                    rhoprint(i,j,k)=real(rho(i,j,k),kind=4)
+                    velprint(1,i,j,k)=real(u(i,j,k),kind=4)
+                    velprint(2,i,j,k)=real(v(i,j,k),kind=4)
+                    velprint(3,i,j,k)=real(w(i,j,k),kind=4)
+                  endif
                 enddo
               enddo
             enddo
            !$acc end kernels 
            !$acc wait(1)
            if(lasync)then
-              call close_print_async
+              call close_print_async(lvtk)
               !$acc update host(rhoprint,velprint) async(2)
            else
               !$acc update host(rhoprint,velprint) async(2)
@@ -575,6 +570,10 @@ program recursiveTSLB3D
                     !$acc loop independent 
                     do i=1,nx
                         if(isfluid(i,j,k).eq.0)then
+                                ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
+                            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
+                            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
+                            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
                             f(i+1,j-1,k-1,25)=f(i,j,k,26) !gpc 
                             f(i-1,j+1,k+1,26)=f(i,j,k,25) !hpc
 
@@ -624,223 +623,64 @@ program recursiveTSLB3D
           if(lpbc)then      
             !periodic along x 
             !$acc kernels async(1)
-            f(2,3:ny-2,3:nz-2,1)=f(nx,3:ny-2,3:nz-2,1)
-            f(2,3:ny-2,3:nz-2,7)=f(nx,3:ny-2,3:nz-2,7)
-            f(2,3:ny-2,3:nz-2,9)=f(nx,3:ny-2,3:nz-2,9)
-            f(2,3:ny-2,3:nz-2,15)=f(nx,3:ny-2,3:nz-2,15)
-            f(2,3:ny-2,3:nz-2,18)=f(nx,3:ny-2,3:nz-2,18)
-            f(2,3:ny-2,3:nz-2,19)=f(nx,3:ny-2,3:nz-2,19)
-            f(2,3:ny-2,3:nz-2,21)=f(nx,3:ny-2,3:nz-2,21)
-            f(2,3:ny-2,3:nz-2,24)=f(nx,3:ny-2,3:nz-2,24)
-            f(2,3:ny-2,3:nz-2,25)=f(nx,3:ny-2,3:nz-2,25)
+                ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
 
-            f(nx-1,3:ny-2,3:nz-2,2)=f(1,3:ny-2,3:nz-2,2)
-            f(nx-1,3:ny-2,3:nz-2,8)=f(1,3:ny-2,3:nz-2,8)
-            f(nx-1,3:ny-2,3:nz-2,10)=f(1,3:ny-2,3:nz-2,10)
-            f(nx-1,3:ny-2,3:nz-2,16)=f(1,3:ny-2,3:nz-2,16)
-            f(nx-1,3:ny-2,3:nz-2,17)=f(1,3:ny-2,3:nz-2,17)
-            f(nx-1,3:ny-2,3:nz-2,20)=f(1,3:ny-2,3:nz-2,20)
-            f(nx-1,3:ny-2,3:nz-2,22)=f(1,3:ny-2,3:nz-2,22)
-            f(nx-1,3:ny-2,3:nz-2,23)=f(1,3:ny-2,3:nz-2,23)
-            f(nx-1,3:ny-2,3:nz-2,26)=f(1,3:ny-2,3:nz-2,26)
-            ! !$acc loop independent 
-            ! do k=2,nz-1
-            !     !$acc loop independent 
-            !     do j=2,ny-1
-            !       if(j>2 .and. j<ny-1 .and. k>2 .and. k<nz-1)then
-            !         f(2,j,k,1)=f(nx,j,k,1)
-            !         f(2,j,k,7)=f(nx,j,k,7)
-            !         f(2,j,k,9)=f(nx,j,k,9)
-            !         f(2,j,k,15)=f(nx,j,k,15)
-            !         f(2,j,k,18)=f(nx,j,k,18)
-            !         f(nx-1,j,k,2)=f(1,j,k,2)
-            !         f(nx-1,j,k,8)=f(1,j,k,8)
-            !         f(nx-1,j,k,10)=f(1,j,k,10)
-            !         f(nx-1,j,k,16)=f(1,j,k,16)
-            !         f(nx-1,j,k,17)=f(1,j,k,17)
-            !       else
-            !         if(j==2)then
-            !           if(k==2)then
-            !             f(2,j,k,1)=f(nx,j,k,1)
-            !             f(2,j,k,9)=f(nx,j,k,9)
-            !             f(2,j,k,18)=f(nx,j,k,18)
-            !             f(nx-1,j,k,2)=f(1,j,k,2)
-            !             f(nx-1,j,k,8)=f(1,j,k,8)
-            !             f(nx-1,j,k,16)=f(1,j,k,16)
-            !           elseif(k==nz-1)then
-            !             f(2,j,k,1)=f(nx,j,k,1)
-            !             f(2,j,k,9)=f(nx,j,k,9)
-            !             f(2,j,k,15)=f(nx,j,k,15)
-            !             f(nx-1,j,k,2)=f(1,j,k,2)
-            !             f(nx-1,j,k,8)=f(1,j,k,8)
-            !             f(nx-1,j,k,17)=f(1,j,k,17)
-            !           else
-            !             f(2,j,k,1)=f(nx,j,k,1)
-            !             f(2,j,k,9)=f(nx,j,k,9)
-            !             f(2,j,k,15)=f(nx,j,k,15)
-            !             f(2,j,k,18)=f(nx,j,k,18)
-            !             f(nx-1,j,k,2)=f(1,j,k,2)
-            !             f(nx-1,j,k,8)=f(1,j,k,8)
-            !             f(nx-1,j,k,16)=f(1,j,k,16)
-            !             f(nx-1,j,k,17)=f(1,j,k,17)
-            !           endif
-            !         elseif(j==ny-1)then
-            !           if(k==2)then
-            !             f(2,j,k,1)=f(nx,j,k,1)
-            !             f(2,j,k,7)=f(nx,j,k,7)
-            !             f(2,j,k,18)=f(nx,j,k,18)
-            !             f(nx-1,j,k,2)=f(1,j,k,2)
-            !             f(nx-1,j,k,10)=f(1,j,k,10)
-            !             f(nx-1,j,k,16)=f(1,j,k,16)
-            !           elseif(k==nz-1)then
-            !             f(2,j,k,1)=f(nx,j,k,1)
-            !             f(2,j,k,7)=f(nx,j,k,7)
-            !             f(2,j,k,15)=f(nx,j,k,15)
-            !             f(nx-1,j,k,2)=f(1,j,k,2)
-            !             f(nx-1,j,k,10)=f(1,j,k,10)
-            !             f(nx-1,j,k,17)=f(1,j,k,17)
-            !           else
-            !             f(2,j,k,1)=f(nx,j,k,1)
-            !             f(2,j,k,7)=f(nx,j,k,7)
-            !             f(2,j,k,15)=f(nx,j,k,15)
-            !             f(2,j,k,18)=f(nx,j,k,18)
-            !             f(nx-1,j,k,2)=f(1,j,k,2)
-            !             f(nx-1,j,k,10)=f(1,j,k,10)
-            !             f(nx-1,j,k,16)=f(1,j,k,16)
-            !             f(nx-1,j,k,17)=f(1,j,k,17)
-            !           endif
-            !         endif
-            !       endif 
-            !     enddo
-			      ! enddo
+            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
+            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
+            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
+            
+            f(2,2:ny-1,2:nz-1,1)=f(nx-1,2:ny-1,2:nz-1,1)
+            f(2,2:ny-1,2:nz-1,7)=f(nx-1,2:ny-1,2:nz-1,7)
+            f(2,2:ny-1,2:nz-1,9)=f(nx-1,2:ny-1,2:nz-1,9)
+            f(2,2:ny-1,2:nz-1,15)=f(nx-1,2:ny-1,2:nz-1,15)
+            f(2,2:ny-1,2:nz-1,18)=f(nx-1,2:ny-1,2:nz-1,18)
+            f(2,2:ny-1,2:nz-1,19)=f(nx-1,2:ny-1,2:nz-1,19)
+            f(2,2:ny-1,2:nz-1,21)=f(nx-1,2:ny-1,2:nz-1,21)
+            f(2,2:ny-1,2:nz-1,24)=f(nx-1,2:ny-1,2:nz-1,24)
+            f(2,2:ny-1,2:nz-1,25)=f(nx-1,2:ny-1,2:nz-1,25)
+            
+            f(nx-1,2:ny-1,2:nz-1,2)=f(2,2:ny-1,2:nz-1,2)
+            f(nx-1,2:ny-1,2:nz-1,8)=f(2,2:ny-1,2:nz-1,8)
+            f(nx-1,2:ny-1,2:nz-1,10)=f(2,2:ny-1,2:nz-1,10)
+            f(nx-1,2:ny-1,2:nz-1,16)=f(2,2:ny-1,2:nz-1,16)
+            f(nx-1,2:ny-1,2:nz-1,17)=f(2,2:ny-1,2:nz-1,17)
+            f(nx-1,2:ny-1,2:nz-1,20)=f(2,2:ny-1,2:nz-1,20)
+            f(nx-1,2:ny-1,2:nz-1,22)=f(2,2:ny-1,2:nz-1,22)
+            f(nx-1,2:ny-1,2:nz-1,23)=f(2,2:ny-1,2:nz-1,23)
+            f(nx-1,2:ny-1,2:nz-1,26)=f(2,2:ny-1,2:nz-1,26)
             !$acc end kernels
             
             !periodic along y
             !$acc kernels async(1)
-            f(3:nx-2,2,3:nz-2,3)=f(3:nx-2,ny,3:nz-2,3)
-            f(3:nx-2,2,3:nz-2,7)=f(3:nx-2,ny,3:nz-2,7)
-            f(3:nx-2,2,3:nz-2,10)=f(3:nx-2,ny,3:nz-2,10)
-            f(3:nx-2,2,3:nz-2,11)=f(3:nx-2,ny,3:nz-2,11)
-            f(3:nx-2,2,3:nz-2,13)=f(3:nx-2,ny,3:nz-2,13)
-            f(3:nx-2,2,3:nz-2,19)=f(3:nx-2,ny,3:nz-2,19)
-            f(3:nx-2,2,3:nz-2,22)=f(3:nx-2,ny,3:nz-2,22)
-            f(3:nx-2,2,3:nz-2,24)=f(3:nx-2,ny,3:nz-2,24)
-            f(3:nx-2,2,3:nz-2,26)=f(3:nx-2,ny,3:nz-2,26)
+                ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
+                
+            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
+            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
+            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
+            
+                  f(2:nx-1,2,2:nz-1,3)=f(2:nx-1,ny-1,2:nz-1,3)
+                  f(2:nx-1,2,2:nz-1,7)=f(2:nx-1,ny-1,2:nz-1,7)
+                  f(2:nx-1,2,2:nz-1,10)=f(2:nx-1,ny-1,2:nz-1,10)
+                  f(2:nx-1,2,2:nz-1,11)=f(2:nx-1,ny-1,2:nz-1,11)
+                  f(2:nx-1,2,2:nz-1,13)=f(2:nx-1,ny-1,2:nz-1,13)
+                  f(2:nx-1,2,2:nz-1,19)=f(2:nx-1,ny-1,2:nz-1,19)
+                  f(2:nx-1,2,2:nz-1,22)=f(2:nx-1,ny-1,2:nz-1,22)
+                  f(2:nx-1,2,2:nz-1,24)=f(2:nx-1,ny-1,2:nz-1,24)
+                  f(2:nx-1,2,2:nz-1,26)=f(2:nx-1,ny-1,2:nz-1,26)
+            
+                  f(2:nx-1,ny-1,2:nz-1,4)=f(2:nx-1,2,2:nz-1,4)
+                  f(2:nx-1,ny-1,2:nz-1,8)=f(2:nx-1,2,2:nz-1,8)
+                  f(2:nx-1,ny-1,2:nz-1,9)=f(2:nx-1,2,2:nz-1,9)
+                  f(2:nx-1,ny-1,2:nz-1,12)=f(2:nx-1,2,2:nz-1,12)
+                  f(2:nx-1,ny-1,2:nz-1,14)=f(2:nx-1,2,2:nz-1,14)
+                  f(2:nx-1,ny-1,2:nz-1,20)=f(2:nx-1,2,2:nz-1,20)
+                  f(2:nx-1,ny-1,2:nz-1,21)=f(2:nx-1,2,2:nz-1,21)
+                  f(2:nx-1,ny-1,2:nz-1,23)=f(2:nx-1,2,2:nz-1,23)
+                  f(2:nx-1,ny-1,2:nz-1,25)=f(2:nx-1,2,2:nz-1,25)
 
-            f(3:nx-2,ny-1,3:nz-2,4)=f(3:nx-2,1,3:nz-2,4)
-            f(3:nx-2,ny-1,3:nz-2,8)=f(3:nx-2,1,3:nz-2,8)
-            f(3:nx-2,ny-1,3:nz-2,9)=f(3:nx-2,1,3:nz-2,9)
-            f(3:nx-2,ny-1,3:nz-2,12)=f(3:nx-2,1,3:nz-2,12)
-            f(3:nx-2,ny-1,3:nz-2,14)=f(3:nx-2,1,3:nz-2,14)
-            f(3:nx-2,ny-1,3:nz-2,20)=f(3:nx-2,1,3:nz-2,20)
-            f(3:nx-2,ny-1,3:nz-2,21)=f(3:nx-2,1,3:nz-2,21)
-            f(3:nx-2,ny-1,3:nz-2,23)=f(3:nx-2,1,3:nz-2,23)
-            f(3:nx-2,ny-1,3:nz-2,25)=f(3:nx-2,1,3:nz-2,25)
-            ! !$acc loop independent 
-            ! do k=2,nz-1
-            !   !$acc loop independent 
-            !   do i=2,nx-1
-            !     if(i>2 .and. i<nx-1 .and. k>2 .and. k<nz-1)then
-            !       f(i,2,k,3)=f(i,ny,k,3)
-            !       f(i,2,k,7)=f(i,ny,k,7)
-            !       f(i,2,k,10)=f(i,ny,k,10)
-            !       f(i,2,k,11)=f(i,ny,k,11)
-            !       f(i,2,k,13)=f(i,ny,k,13)
-            !       f(i,ny-1,k,4)=f(i,1,k,4)
-            !       f(i,ny-1,k,8)=f(i,1,k,8)
-            !       f(i,ny-1,k,9)=f(i,1,k,9)
-            !       f(i,ny-1,k,12)=f(i,1,k,12)
-            !       f(i,ny-1,k,14)=f(i,1,k,14)
-            !     else
-            !       if(i==2)then
-            !         if(k==2)then
-            !           f(i,2,k,3)=f(i,ny,k,3)
-            !           f(i,2,k,10)=f(i,ny,k,10)
-            !           f(i,2,k,13)=f(i,ny,k,13)
-            !           f(i,ny-1,k,4)=f(i,1,k,4)
-            !           f(i,ny-1,k,8)=f(i,1,k,8)
-            !           f(i,ny-1,k,12)=f(i,1,k,12)
-            !         elseif(k==nz-1)then
-            !           f(i,2,k,3)=f(i,ny,k,3)
-            !           f(i,2,k,10)=f(i,ny,k,10)
-            !           f(i,2,k,11)=f(i,ny,k,11)
-            !           f(i,ny-1,k,4)=f(i,1,k,4)
-            !           f(i,ny-1,k,8)=f(i,1,k,8)
-            !           f(i,ny-1,k,14)=f(i,1,k,14)
-            !         else
-            !           f(i,2,k,3)=f(i,ny,k,3)
-            !           f(i,2,k,10)=f(i,ny,k,10)
-            !           f(i,2,k,11)=f(i,ny,k,11)
-            !           f(i,2,k,13)=f(i,ny,k,13)
-            !           f(i,ny-1,k,4)=f(i,1,k,4)
-            !           f(i,ny-1,k,8)=f(i,1,k,8)
-            !           f(i,ny-1,k,12)=f(i,1,k,12)
-            !           f(i,ny-1,k,14)=f(i,1,k,14)
-            !         endif
-            !       elseif(i==nx-1)then
-            !         if(k==2)then
-            !           f(i,2,k,3)=f(i,ny,k,3)
-            !           f(i,2,k,7)=f(i,ny,k,7)
-            !           f(i,2,k,13)=f(i,ny,k,13)
-            !           f(i,ny-1,k,4)=f(i,1,k,4)
-            !           f(i,ny-1,k,9)=f(i,1,k,9)
-            !           f(i,ny-1,k,12)=f(i,1,k,12)
-            !         elseif(k==nz-1)then 
-            !           f(i,2,k,3)=f(i,ny,k,3)
-            !           f(i,2,k,7)=f(i,ny,k,7)
-            !           f(i,2,k,11)=f(i,ny,k,11)
-            !           f(i,ny-1,k,4)=f(i,1,k,4)
-            !           f(i,ny-1,k,9)=f(i,1,k,9)
-            !           f(i,ny-1,k,14)=f(i,1,k,14)
-            !         else
-            !           f(i,2,k,3)=f(i,ny,k,3)
-            !           f(i,2,k,7)=f(i,ny,k,7)
-            !           f(i,2,k,11)=f(i,ny,k,11)
-            !           f(i,2,k,13)=f(i,ny,k,13)
-            !           f(i,ny-1,k,4)=f(i,1,k,4)
-            !           f(i,ny-1,k,9)=f(i,1,k,9)
-            !           f(i,ny-1,k,12)=f(i,1,k,12)
-            !           f(i,ny-1,k,14)=f(i,1,k,14)
-            !         endif
-            !       endif
-            !     endif
-			      !   enddo
-			      ! enddo
 			      !$acc end kernels
 			
-          endif
-            ! !$acc kernels async(1)
-            ! !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1/)
-            ! !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0/)
-            ! !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1/)
-            ! ! f(2,:,:,1)=f(nx,:,:,1)
-            ! ! f(2,:,:,7)=f(nx,:,:,7)
-            ! ! f(2,:,:,9)=f(nx,:,:,9)
-            ! ! f(2,:,:,15)=f(nx,:,:,15)
-            ! ! f(2,:,:,18)=f(nx,:,:,18)
-            ! ! !x=nx 
-            ! ! f(nx-1,:,:,2)=f(1,:,:,2)
-            ! ! f(nx-1,:,:,8)=f(1,:,:,8)
-            ! ! f(nx-1,:,:,10)=f(1,:,:,10)
-            ! ! f(nx-1,:,:,16)=f(1,:,:,16)
-            ! ! f(nx-1,:,:,17)=f(1,:,:,17)
-
-            ! ! !y=1
-            ! ! f3(:,2,:)=f3(:,ny,:)
-            ! ! f7(:,2,:)=f7(:,ny,:)
-            ! ! f10(:,2,:)=f10(:,ny,:)
-            ! ! f11(:,2,:)=f11(:,ny,:)
-            ! ! f13(:,2,:)=f13(:,ny,:)
-        
-            ! ! !y=ny
-            ! ! f4(:,ny-1,:)=f4(:,1,:)
-            ! ! f8(:,ny-1,:)=f8(:,1,:)
-            ! ! f9(:,ny-1,:)=f9(:,1,:)
-            ! ! f12(:,ny-1,:)=f12(:,1,:)
-            ! ! f14(:,ny-1,:)=f14(:,1,:)
-            ! !$acc end kernels
-       
-        
+          endif        
     enddo 
     !$acc wait
     if(lasync)then
@@ -853,12 +693,6 @@ program recursiveTSLB3D
     !$acc update host(rho,u,v,w)
     !$acc end data
     call cpu_time(ts2)
-    write(6,*) 'u=',u(nx/2,ny/2,nz/2),'v=',v(nx/2,ny/2,nz/2),'w=',w(nx/2,ny/2,nz/2),'rho=',rho(nx/2,ny/2,nz/2)
-    write(6,*) 'u=',u(nx/2,ny/2,1),'v=',v(nx/2,ny/2,1),'w=',w(nx/2,ny/2,1),'rho=',rho(nx/2,ny/2,1)
-    write(6,*) 'u=',u(2,ny/2,nz/2),'v=',v(2,ny/2,nz/2),'w=',w(2,ny/2,nz/2),'rho=',rho(2,ny/2,nz/2)
-    write(6,*) 'u=',u(2,ny/2,nz/2),'v=',v(2,ny/2,nz/2),'w=',w(2,ny/2,nz/2),'rho=',rho(2,ny/2,nz/2)
-    write(6,*) 'u=',u(12,ny/2,nz/2),'v=',v(12,ny/2,nz/2),'w=',w(12,ny/2,nz/2),'rho=',rho(12,ny/2,nz/2)
-    write(6,*) 'u=',u(24,ny/2,nz/2),'v=',v(24,ny/2,nz/2),'w=',w(24,ny/2,nz/2),'rho=',rho(24,ny/2,nz/2)
     write(6,*) 'time elapsed: ', ts2-ts1, ' s of your life time' 
     write(6,*) 'glups: ',  real(nx)*real(ny)*real(nz)*real(nsteps)/1.0e9/(ts2-ts1)
     
@@ -866,152 +700,152 @@ program recursiveTSLB3D
     call print_memory_registration_gpu(6,'DEVICE memory occupied at the end', &
      'total DEVICE memory',mymemory,totmemory)
 
-  contains
-  !$if _OPENACC  
-    subroutine printDeviceProperties(ngpus,dev_Num,dev_Type,iu)
+  ! contains
+  ! !$if _OPENACC  
+  !   subroutine printDeviceProperties(ngpus,dev_Num,dev_Type,iu)
     
     
-    use openacc
+  !   use openacc
     
-    integer :: ngpus,dev_Num
-    integer(acc_device_kind) :: dev_Type
+  !   integer :: ngpus,dev_Num
+  !   integer(acc_device_kind) :: dev_Type
   
-    integer,intent(in) :: iu 
-    integer :: tot_mem,shared_mem
-    character(len=255) :: myname,myvendor,mydriver
+  !   integer,intent(in) :: iu 
+  !   integer :: tot_mem,shared_mem
+  !   character(len=255) :: myname,myvendor,mydriver
     
-    call acc_get_property_string(dev_num,dev_type,acc_property_name,myname)
-    tot_mem = acc_get_property(dev_num,dev_type,acc_property_memory)
-    call acc_get_property_string(dev_num,dev_type,acc_property_vendor,myvendor)
-    call acc_get_property_string(dev_num,dev_type,acc_property_driver,mydriver)
+  !   call acc_get_property_string(dev_num,dev_type,acc_property_name,myname)
+  !   tot_mem = acc_get_property(dev_num,dev_type,acc_property_memory)
+  !   call acc_get_property_string(dev_num,dev_type,acc_property_vendor,myvendor)
+  !   call acc_get_property_string(dev_num,dev_type,acc_property_driver,mydriver)
     
-    write(iu,907)"                                                                               "
-    write(iu,907)"*****************************GPU FEATURE MONITOR*******************************"
-    write(iu,907)"                                                                               "
+  !   write(iu,907)"                                                                               "
+  !   write(iu,907)"*****************************GPU FEATURE MONITOR*******************************"
+  !   write(iu,907)"                                                                               "
     
-    write (iu,900) "Device Number: "      ,ngpus
-    write (iu,901) "Device Name: "        ,trim(myname)
-    write (iu,903) "Total Global Memory: ",real(tot_mem)/1e9," Gbytes"
-    write (iu,901) "Vendor: "        ,trim(myvendor)
-    write (iu,901) "Driver: "        ,trim(mydriver)
+  !   write (iu,900) "Device Number: "      ,ngpus
+  !   write (iu,901) "Device Name: "        ,trim(myname)
+  !   write (iu,903) "Total Global Memory: ",real(tot_mem)/1e9," Gbytes"
+  !   write (iu,901) "Vendor: "        ,trim(myvendor)
+  !   write (iu,901) "Driver: "        ,trim(mydriver)
     
-    write(iu,907)"                                                                               "
-    write(iu,907)"*******************************************************************************"
-    write(iu,907)"                                                                               "
+  !   write(iu,907)"                                                                               "
+  !   write(iu,907)"*******************************************************************************"
+  !   write(iu,907)"                                                                               "
     
-    900 format (a,i0)
-    901 format (a,a)
-    902 format (a,i0,a)
-    903 format (a,f16.8,a)
-    904 format (a,2(i0,1x,'x',1x),i0)
-    905 format (a,i0,'.',i0)
-    906 format (a,l0)
-    907 format (a)
+  !   900 format (a,i0)
+  !   901 format (a,a)
+  !   902 format (a,i0,a)
+  !   903 format (a,f16.8,a)
+  !   904 format (a,2(i0,1x,'x',1x),i0)
+  !   905 format (a,i0,'.',i0)
+  !   906 format (a,l0)
+  !   907 format (a)
     
-    return
+  !   return
     
-    end subroutine printDeviceProperties
-  !$endif  
-  subroutine print_raw_sync(iframe)
+  !   end subroutine printDeviceProperties
+  ! !$endif  
+  ! subroutine print_raw_sync(iframe)
   
-   implicit none
+  !  implicit none
    
-   integer, intent(in) :: iframe
+  !  integer, intent(in) :: iframe
   
-   sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=345,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(345)rhoprint
-   close(345)
-   open(unit=346,file=trim(sevt2), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(346)velprint
-   close(346)
+  !  sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
+  !   '_'//trim(write_fmtnumb(iframe)) // '.raw'
+  !  sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
+  !   '_'//trim(write_fmtnumb(iframe)) // '.raw'
+  !  open(unit=345,file=trim(sevt1), &
+  !   status='replace',action='write',access='stream',form='unformatted')
+  !  write(345)rhoprint
+  !  close(345)
+  !  open(unit=346,file=trim(sevt2), &
+  !   status='replace',action='write',access='stream',form='unformatted')
+  !  write(346)velprint
+  !  close(346)
    
-  end subroutine print_raw_sync
+  ! end subroutine print_raw_sync
   
-  subroutine print_vtk_sync(iframe)
-   implicit none
+  ! subroutine print_vtk_sync(iframe)
+  !  implicit none
    
-   integer, intent(in) :: iframe
+  !  integer, intent(in) :: iframe
    
-   sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
-    '_'//trim(write_fmtnumb(iframe)) // '.vti'
-   sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
-    '_'//trim(write_fmtnumb(iframe)) // '.vti'
-   open(unit=345,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(345)head1,ndatavtk(1),rhoprint,footervtk(1)
-   close(345)
-   open(unit=346,file=trim(sevt2), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(346)head2,ndatavtk(2),velprint,footervtk(2)
-   close(346)
+  !  sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
+  !   '_'//trim(write_fmtnumb(iframe)) // '.vti'
+  !  sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
+  !   '_'//trim(write_fmtnumb(iframe)) // '.vti'
+  !  open(unit=345,file=trim(sevt1), &
+  !   status='replace',action='write',access='stream',form='unformatted')
+  !  write(345)head1,ndatavtk(1),rhoprint,footervtk(1)
+  !  close(345)
+  !  open(unit=346,file=trim(sevt2), &
+  !   status='replace',action='write',access='stream',form='unformatted')
+  !  write(346)head2,ndatavtk(2),velprint,footervtk(2)
+  !  close(346)
    
-  end subroutine print_vtk_sync
+  ! end subroutine print_vtk_sync
   
-  subroutine print_raw_async(iframe)
+  ! subroutine print_raw_async(iframe)
   
-   implicit none
+  !  implicit none
    
-   integer, intent(in) :: iframe
+  !  integer, intent(in) :: iframe
   
-   sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=345,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted',&
-    asynchronous='yes')
-   write(345,asynchronous='yes')rhoprint
+  !  sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
+  !   '_'//trim(write_fmtnumb(iframe)) // '.raw'
+  !  sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
+  !   '_'//trim(write_fmtnumb(iframe)) // '.raw'
+  !  open(unit=345,file=trim(sevt1), &
+  !   status='replace',action='write',access='stream',form='unformatted',&
+  !   asynchronous='yes')
+  !  write(345,asynchronous='yes')rhoprint
    
-   open(unit=346,file=trim(sevt2), &
-    status='replace',action='write',access='stream',form='unformatted',&
-    asynchronous='yes')
-   write(346,asynchronous='yes')velprint
+  !  open(unit=346,file=trim(sevt2), &
+  !   status='replace',action='write',access='stream',form='unformatted',&
+  !   asynchronous='yes')
+  !  write(346,asynchronous='yes')velprint
    
    
-  end subroutine print_raw_async
+  ! end subroutine print_raw_async
   
-  subroutine print_vtk_async(iframe)
-   implicit none
+  ! subroutine print_vtk_async(iframe)
+  !  implicit none
    
-   integer, intent(in) :: iframe
+  !  integer, intent(in) :: iframe
    
-   sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
-    '_'//trim(write_fmtnumb(iframe)) // '.vti'
-   sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
-    '_'//trim(write_fmtnumb(iframe)) // '.vti'
+  !  sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
+  !   '_'//trim(write_fmtnumb(iframe)) // '.vti'
+  !  sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
+  !   '_'//trim(write_fmtnumb(iframe)) // '.vti'
     
-   open(unit=345,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted',&
-    asynchronous='yes')
-   write(345,asynchronous='yes')head1,ndatavtk(1),rhoprint
+  !  open(unit=345,file=trim(sevt1), &
+  !   status='replace',action='write',access='stream',form='unformatted',&
+  !   asynchronous='yes')
+  !  write(345,asynchronous='yes')head1,ndatavtk(1),rhoprint
    
    
-   open(unit=780,file=trim(sevt2), &
-    status='replace',action='write',access='stream',form='unformatted',&
-    asynchronous='yes')
-   write(780,asynchronous='yes')head2,ndatavtk(2),velprint
+  !  open(unit=780,file=trim(sevt2), &
+  !   status='replace',action='write',access='stream',form='unformatted',&
+  !   asynchronous='yes')
+  !  write(780,asynchronous='yes')head2,ndatavtk(2),velprint
    
-  end subroutine print_vtk_async
+  ! end subroutine print_vtk_async
   
-  subroutine close_print_async
+  ! subroutine close_print_async
   
-   implicit none
+  !  implicit none
    
-   wait(345)
-   if(lvtk)write(345)footervtk(1)
-   close(345)
+  !  wait(345)
+  !  if(lvtk)write(345)footervtk(1)
+  !  close(345)
    
    
-   wait(780)
-   if(lvtk)write(780)footervtk(2)
-   close(780) 
+  !  wait(780)
+  !  if(lvtk)write(780)footervtk(2)
+  !  close(780) 
    
-  end subroutine close_print_async
+  ! end subroutine close_print_async
     
 end program

@@ -651,5 +651,152 @@
           return
   
     end subroutine print_memory_registration_gpu
- 
+    !******************************************************************************************************!
+  !$if _OPENACC  
+    subroutine printDeviceProperties(ngpus,dev_Num,dev_Type,iu)
+    
+    
+    use openacc
+    
+    integer :: ngpus,dev_Num
+    integer(acc_device_kind) :: dev_Type
+  
+    integer,intent(in) :: iu 
+    integer :: tot_mem,shared_mem
+    character(len=255) :: myname,myvendor,mydriver
+    
+    call acc_get_property_string(dev_num,dev_type,acc_property_name,myname)
+    tot_mem = acc_get_property(dev_num,dev_type,acc_property_memory)
+    call acc_get_property_string(dev_num,dev_type,acc_property_vendor,myvendor)
+    call acc_get_property_string(dev_num,dev_type,acc_property_driver,mydriver)
+    
+    write(iu,907)"                                                                               "
+    write(iu,907)"*****************************GPU FEATURE MONITOR*******************************"
+    write(iu,907)"                                                                               "
+    
+    write (iu,900) "Device Number: "      ,ngpus
+    write (iu,901) "Device Name: "        ,trim(myname)
+    write (iu,903) "Total Global Memory: ",real(tot_mem)/1e9," Gbytes"
+    write (iu,901) "Vendor: "        ,trim(myvendor)
+    write (iu,901) "Driver: "        ,trim(mydriver)
+    
+    write(iu,907)"                                                                               "
+    write(iu,907)"*******************************************************************************"
+    write(iu,907)"                                                                               "
+    
+    900 format (a,i0)
+    901 format (a,a)
+    902 format (a,i0,a)
+    903 format (a,f16.8,a)
+    904 format (a,2(i0,1x,'x',1x),i0)
+    905 format (a,i0,'.',i0)
+    906 format (a,l0)
+    907 format (a)
+    
+    return
+    
+    end subroutine printDeviceProperties
+  !$endif  
+  subroutine print_raw_sync(iframe)
+  
+   implicit none
+   
+   integer, intent(in) :: iframe
+  
+   sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.raw'
+   sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.raw'
+   open(unit=345,file=trim(sevt1), &
+    status='replace',action='write',access='stream',form='unformatted')
+   write(345)rhoprint
+   close(345)
+   open(unit=346,file=trim(sevt2), &
+    status='replace',action='write',access='stream',form='unformatted')
+   write(346)velprint
+   close(346)
+   
+  end subroutine print_raw_sync
+  
+  subroutine print_vtk_sync(iframe)
+   implicit none
+   
+   integer, intent(in) :: iframe
+   
+   sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.vti'
+   sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.vti'
+   open(unit=345,file=trim(sevt1), &
+    status='replace',action='write',access='stream',form='unformatted')
+   write(345)head1,ndatavtk(1),rhoprint,footervtk(1)
+   close(345)
+   open(unit=346,file=trim(sevt2), &
+    status='replace',action='write',access='stream',form='unformatted')
+   write(346)head2,ndatavtk(2),velprint,footervtk(2)
+   close(346)
+   
+  end subroutine print_vtk_sync
+  
+  subroutine print_raw_async(iframe)
+  
+   implicit none
+   
+   integer, intent(in) :: iframe
+  
+   sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.raw'
+   sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.raw'
+   open(unit=345,file=trim(sevt1), &
+    status='replace',action='write',access='stream',form='unformatted',&
+    asynchronous='yes')
+   write(345,asynchronous='yes')rhoprint
+   
+   open(unit=346,file=trim(sevt2), &
+    status='replace',action='write',access='stream',form='unformatted',&
+    asynchronous='yes')
+   write(346,asynchronous='yes')velprint
+   
+   
+  end subroutine print_raw_async
+  
+  subroutine print_vtk_async(iframe)
+   implicit none
+   
+   integer, intent(in) :: iframe
+   
+   sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.vti'
+   sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.vti'
+    
+   open(unit=345,file=trim(sevt1), &
+    status='replace',action='write',access='stream',form='unformatted',&
+    asynchronous='yes')
+   write(345,asynchronous='yes')head1,ndatavtk(1),rhoprint
+   
+   
+   open(unit=780,file=trim(sevt2), &
+    status='replace',action='write',access='stream',form='unformatted',&
+    asynchronous='yes')
+   write(780,asynchronous='yes')head2,ndatavtk(2),velprint
+   
+  end subroutine print_vtk_async
+  
+  subroutine close_print_async(lvtk)
+   
+   implicit none
+   logical, intent(in) :: lvtk
+   
+   wait(345)
+   if(lvtk)write(345)footervtk(1)
+   close(345)
+   
+   
+   wait(780)
+   if(lvtk)write(780)footervtk(2)
+   close(780) 
+   
+  end subroutine close_print_async
  endmodule
