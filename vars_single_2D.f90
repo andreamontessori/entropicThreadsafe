@@ -11,6 +11,7 @@ module vars
     logical :: lvtk=.true.
     logical :: lasync=.false.
     logical :: lpbc=.true.
+    logical :: lpbcfull=.true.
     
     real(kind=db),parameter :: pi_greek=3.14159265359793234626433
     

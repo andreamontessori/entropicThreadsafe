@@ -6,7 +6,7 @@ module vars
     integer :: nx,ny,nz,step,stamp,nlinks,nsteps,ngpus
     integer :: istat,iframe
     
-    logical :: lprint,lvtk,lasync,lpbc
+    logical :: lprint,lvtk,lasync,lpbc,lpbcfull
     
     real(kind=db),parameter :: pi_greek=3.14159265359793234626433
     
