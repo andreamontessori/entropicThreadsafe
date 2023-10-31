@@ -6,7 +6,7 @@ program recursiveTSLB3D
     use vars
     
     implicit none
-    
+    real(kind=4) :: rrx,rry,rrz
     !$if _OPENACC
     integer :: devNum
     integer(acc_device_kind) :: devType
@@ -15,7 +15,7 @@ program recursiveTSLB3D
     !$endif
 
     nlinks=26 !pari!
-    tau=0.6_db
+    tau=0.5027_db
     cssq=1.0_db/3.0_db
     visc_LB=cssq*(tau-0.5_db)
     one_ov_nu=1.0_db/visc_LB
@@ -25,14 +25,15 @@ program recursiveTSLB3D
     ngpus=0
 #endif
 
-    !*******************************user parameters and allocations**************************m
-        nx=64
-        ny=64
-        nz=64
-        nsteps=20000
-        stamp=20000
-        fx=0.0_db*10.0**(-5)
-        fy=1.0_db*10.0**(-5)
+    !*******************************user parameters and allocations**************************
+        nx=1520
+        ny=600
+        nz=258
+        nsteps=2000000
+        stamp=2000000
+        stamp2D=10000
+        fx=1.0_db*10.0**(-7)
+        fy=0.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
         lprint=.true.
         lvtk=.true.
@@ -76,17 +77,172 @@ program recursiveTSLB3D
         w=0.0_db
         rho=1.0_db  !tot dens
         !do ll=0,nlinks
-        f(1:nx,1:ny,1:nz,0)=rho(1:nx,1:ny,1:nz)*p0
-        do ll=1,6
-          f(1:nx,1:ny,1:nz,ll)=rho(1:nx,1:ny,1:nz)*p1
-        enddo
-        do ll=7,18
-          f(1:nx,1:ny,1:nz,ll)=rho(1:nx,1:ny,1:nz)*p2
-        enddo
-        do ll=19,26
-          f(1:nx,1:ny,1:nz,ll)=rho(1:nx,1:ny,1:nz)*p3
-        enddo
-    !enddo
+        do k=1,nz
+              do j=1,ny
+                  do i=1,nx
+                      if(isfluid(i,j,k).eq.1)then
+                          !turbulent channel init
+                          call random_number(rrx)
+                          call random_number(rry)
+                          call random_number(rrz)
+                          if(k.le.nz/2)then
+                            u(i,j,k)=0.5*((fx/(2*visc_LB))*(k-2)*((nz-2)-(k-2)) + 0.4*rrx*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
+                            v(i,j,k)=0.5*(0.4*rry*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
+                            w(i,j,k)=0.5*(0.4*rrz*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
+                          else
+                            u(i,j,k)=0.25*((fx/(2*visc_LB))*(k-2)*((nz-2)-(k-2)) + 0.8*rrx*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
+                            v(i,j,k)=0.25*(0.8*rry*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
+                            w(i,j,k)=0.25*(0.8*rrz*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
+                          endif
+                          !0
+                          
+                          feq=(-4*rho(i,j,k)*(-2 + 3*u(i,j,k)**2 + 3*v(i,j,k)**2 + 3*w(i,j,k)**2))/27.
+                          
+                          f(i,j,k,0)=feq 
+                          
+                          !1
+                          
+                          feq=(rho(i,j,k)*(2 + 6*u(i,j,k) + 6*u(i,j,k)**2 - 3*v(i,j,k)**2 - 9*u(i,j,k)*v(i,j,k)**2 - 3*(1 + 3*u(i,j,k))*w(i,j,k)**2))/27.
+                          
+                          f(i,j,k,1)=feq 
+                          
+                          !2
+                          feq=(rho(i,j,k)*(2 - 3*v(i,j,k)**2 - 3*w(i,j,k)**2 + 3*u(i,j,k)*(-2 + 2*u(i,j,k) + 3*v(i,j,k)**2 + 3*w(i,j,k)**2)))/27.
+                          
+                          f(i,j,k,2)=feq 
+                          
+                          !3
+                          
+                          feq=(rho(i,j,k)*(2 - 3*u(i,j,k)**2*(1 + 3*v(i,j,k)) - 3*w(i,j,k)**2 + 3*v(i,j,k)*(2 + 2*v(i,j,k) - 3*w(i,j,k)**2)))/27.
+                          
+                          f(i,j,k,3)=feq
+                          
+                          !4
+                          feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(-3 + 9*v(i,j,k)) - 3*w(i,j,k)**2 + 3*v(i,j,k)*(-2 + 2*v(i,j,k) + 3*w(i,j,k)**2)))/27.
+                          
+                          f(i,j,k,4)=feq
+                          
+                          !7
+                          
+                          feq=(2*rho(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) + u(i,j,k)*(3 + 9*v(i,j,k)*(1 + v(i,j,k)))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                          
+                          f(i,j,k,7)=feq 
+                          
+                          !8
+                          feq=(2*rho(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(-3 - 9*(-1 + v(i,j,k))*v(i,j,k))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                          
+                          f(i,j,k,8)=feq 
+                          
+                          !10
+                          
+                          feq=(2*rho(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                          
+                          f(i,j,k,10)=feq
+                          
+                          !9
+                          feq=(2*rho(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(3 + 9*(-1 + v(i,j,k))*v(i,j,k))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                          
+                          f(i,j,k,9)=feq
+
+                          !5
+                          
+                          feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) - 3*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k))))/27.
+                          
+                          f(i,j,k,5)=feq
+                          
+                          !6
+                          feq=(rho(i,j,k)*(2 + 6*(-1 + w(i,j,k))*w(i,j,k) + u(i,j,k)**2*(-3 + 9*w(i,j,k)) + v(i,j,k)**2*(-3 + 9*w(i,j,k))))/27.
+                          
+                          f(i,j,k,6)=feq
+
+                          !15
+                          
+                          feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k)) + 3*u(i,j,k)*(2 - 3*v(i,j,k)**2 + 6*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                          
+                          f(i,j,k,15)=feq
+                          
+                          !16
+                          feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(6 - 18*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)**2*(-3 + 9*w(i,j,k)) + 3*u(i,j,k)*(-2 + 3*v(i,j,k)**2 - 6*(-1 + w(i,j,k))*w(i,j,k))))/108.
+                          
+                          f(i,j,k,16)=feq
+
+                          !17
+                          
+                          feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k)) + 3*u(i,j,k)*(-2 + 3*v(i,j,k)**2 - 6*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                          
+                          f(i,j,k,17)=feq
+                          
+                          !18
+                          feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(6 - 18*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)**2*(-3 + 9*w(i,j,k)) + 3*u(i,j,k)*(2 - 3*v(i,j,k)**2 + 6*(-1 + w(i,j,k))*w(i,j,k))))/108.
+                          
+                          f(i,j,k,18)=feq
+
+                          !11
+                          
+                          feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*v(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*u(i,j,k)**2*(1 + 3*v(i,j,k) + 3*w(i,j,k)) + 2*v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                          
+                          f(i,j,k,11)=feq
+                          
+                          !12
+                          feq=(rho(i,j,k)*(2 + 2*v(i,j,k)**2*(3 - 9*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + u(i,j,k)**2*(-3 + 9*v(i,j,k) + 9*w(i,j,k)) + 2*v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k))))/108.
+                          
+                          f(i,j,k,12)=feq
+
+                          !13
+                          
+                          feq=(rho(i,j,k)*(2 - 6*w(i,j,k) + u(i,j,k)**2*(-3 - 9*v(i,j,k) + 9*w(i,j,k)) + 6*(v(i,j,k) + v(i,j,k)**2*(1 - 3*w(i,j,k)) + 3*v(i,j,k)*(-1 + w(i,j,k))*w(i,j,k) + w(i,j,k)**2)))/108.
+                          
+                          f(i,j,k,13)=feq
+                          
+                          !14
+                          feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(-3 + 9*v(i,j,k) - 9*w(i,j,k)) + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*v(i,j,k)**2*(1 + 3*w(i,j,k)) - 6*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                          
+                          f(i,j,k,14)=feq
+
+                          !19
+                          feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) + 9*w(i,j,k)) + v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k))) + 3*u(i,j,k)*(1 + 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 + 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
+                          
+                          f(i,j,k,19)=feq 
+                          
+                          !20
+                          feq=(rho(i,j,k)*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 + 9*w(i,j,k)))))/216.
+                          
+                          f(i,j,k,20)=feq
+
+                          !21
+                          feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) + 9*w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k))) + 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*w(i,j,k)*(1 + w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)))))/216.
+                          
+                          f(i,j,k,21)=feq
+                          
+                          !22
+                          feq=(rho(i,j,k)*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(3 + 9*(-1 + w(i,j,k))*w(i,j,k)) - 3*u(i,j,k)*(1 - 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 - 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
+                          
+                          f(i,j,k,22)=feq
+
+                          !23
+                          feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) + 9*w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k))) - 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*w(i,j,k)*(1 + w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)))))/216.
+                          
+                          f(i,j,k,23)=feq
+
+                          !24
+                          feq=(rho(i,j,k)*(1 + 3*v(i,j,k) - 3*w(i,j,k)+ 3*(u(i,j,k) + u(i,j,k)**2 + 3*u(i,j,k)*v(i,j,k) + 3*u(i,j,k)**2*v(i,j,k) + v(i,j,k)**2 + 3*u(i,j,k)*v(i,j,k)**2 - 3*(u(i,j,k) + u(i,j,k)**2 + v(i,j,k) + 3*u(i,j,k)*v(i,j,k) + v(i,j,k)**2)*w(i,j,k) + (1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)))/216.
+                          
+                          f(i,j,k,24)=feq
+
+                          !25
+                          feq=(rho(i,j,k)*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k)) + 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 + 9*w(i,j,k)))))/216.
+                          
+                          f(i,j,k,25)=feq 
+
+                          !26
+                          feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) + 9*w(i,j,k)) + v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k))) - 3*u(i,j,k)*(1 + 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 + 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
+                          
+                          f(i,j,k,26)=feq 
+                      endif
+                  enddo
+              enddo
+          enddo
+    
     !*************************************check data ************************ 
         write(6,*) '*******************LB data*****************'
         write(6,*) 'tau',tau
@@ -116,6 +272,7 @@ program recursiveTSLB3D
         call printDeviceProperties(ngpus,devNum,devType,6)
     !$endif
     iframe=0
+    iframe2D=0
     write(6,'(a,i8,a,i8,3f16.4)')'start step : ',0,' frame ',iframe
     
     if(lprint)then  
@@ -179,6 +336,7 @@ program recursiveTSLB3D
 
                           w(i,j,k) = ((f(i,j,k,5)+f(i,j,k,11)+f(i,j,k,14)+f(i,j,k,15)+f(i,j,k,17)+f(i,j,k,19)+f(i,j,k,21)+f(i,j,k,23)+f(i,j,k,26)) &
                               -(f(i,j,k,6)+f(i,j,k,12)+f(i,j,k,13)+f(i,j,k,16)+f(i,j,k,18)+f(i,j,k,20)+f(i,j,k,22)+f(i,j,k,24)+f(i,j,k,25)))/rho(i,j,k)                        
+                          
                           !1-2
                           feq=(rho(i,j,k)*(2 + 6*u(i,j,k) + 6*u(i,j,k)**2 - 3*v(i,j,k)**2 - 9*u(i,j,k)*v(i,j,k)**2 - 3*(1 + 3*u(i,j,k))*w(i,j,k)**2))/27.
                           fneq1=f(i,j,k,1)-feq
@@ -344,7 +502,7 @@ program recursiveTSLB3D
               enddo
           enddo
           !$acc end kernels
-        !***********************************Print on files************************
+        !***********************************Print on files 3D************************
           if(mod(step,stamp).eq.0)write(6,'(a,i8)')'step : ',step
             if(lprint)then
               if(mod(step,stamp).eq.0)then
@@ -370,9 +528,17 @@ program recursiveTSLB3D
               endif
             endif
           endif
-        
+        !***********************************Print on files 2D************************
+          if(mod(step,stamp2D).eq.0)write(6,'(a,i8)')'step : ',step
+            if(lprint)then
+              if(mod(step,stamp2D).eq.0)then
+                iframe2D=iframe2D+1
+                !$acc update host(rho,u,v,w) 
+                call print_raw_slice_sync(iframe2D)
+            endif
+          endif
         !***********************************collision + no slip + forcing: fused implementation*********
-         !$acc kernels
+          !$acc kernels
           !$acc loop collapse(3) private(feq,uu,temp,udotc)
           do k=1,nz
               do j=1,ny
@@ -579,10 +745,9 @@ program recursiveTSLB3D
                     enddo
                 enddo
             enddo
-        
          !$acc end kernels
         
-        !***********************************call other bcs:PERIODIC ************************
+        !*********************************** call other bcs:PERIODIC ************************
           if(lpbc)then      
             !periodic along x 
             !$acc kernels 
@@ -640,9 +805,7 @@ program recursiveTSLB3D
             f(2:nx-1,ny-1,2:nz-1,21)=f(2:nx-1,2,2:nz-1,21)
             f(2:nx-1,ny-1,2:nz-1,23)=f(2:nx-1,2,2:nz-1,23)
             f(2:nx-1,ny-1,2:nz-1,25)=f(2:nx-1,2,2:nz-1,25)
-
 			      !$acc end kernels
-			
           endif        
     enddo 
     !$acc end data

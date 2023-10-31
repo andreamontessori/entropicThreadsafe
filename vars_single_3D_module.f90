@@ -3,8 +3,8 @@ module vars
     implicit none
     integer, parameter :: db=4 !kind(1.0)
     integer :: i,j,k,ll
-    integer :: nx,ny,nz,step,stamp,nlinks,nsteps,ngpus
-    integer :: istat,iframe
+    integer :: nx,ny,nz,step,stamp,stamp2D,nlinks,nsteps,ngpus
+    integer :: istat,iframe,iframe2D
     
     logical :: lprint,lvtk,lasync,lpbc
     

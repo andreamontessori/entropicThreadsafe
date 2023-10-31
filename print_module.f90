@@ -3,29 +3,7 @@
     use vars
     
     implicit none
-  
-    !integer, parameter :: db=4 !kind(1.0)
-    ! integer, parameter :: mxln=120
-    ! character(len=8), allocatable, dimension(:) :: namevarvtk
-    ! character(len=500), allocatable, dimension(:) :: headervtk
-    ! character(len=30), allocatable, dimension(:) :: footervtk
-    ! integer, allocatable, dimension(:) :: ndimvtk
-    ! integer, allocatable, dimension(:) :: vtkoffset
-    ! integer, allocatable, dimension(:) :: ndatavtk
-    ! integer, allocatable, dimension(:) :: nheadervtk
-    ! integer :: nfilevtk
-    ! integer, allocatable, dimension(:) :: varlistvtk
-    ! character :: delimiter
-    ! character(len=*), parameter :: filenamevtk='out'
-    
-    ! real(kind=4), allocatable, dimension(:,:,:) :: rhoprint
-    ! real(kind=4), allocatable, dimension(:,:,:,:) :: velprint
-    ! logical :: lelittle
-    ! character(len=mxln) :: dir_out
-    ! character(len=mxln) :: extentvtk
-    ! character(len=mxln) :: sevt1,sevt2
-    ! character(len=1), allocatable, dimension(:) :: head1,head2
-    
+        
     contains
   
     subroutine header_vtk(nx,ny,nz,mystring500,namevar,extent,ncomps,iinisub,iend,myoffset, &
