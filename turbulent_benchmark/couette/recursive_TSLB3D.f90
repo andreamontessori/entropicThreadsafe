@@ -17,7 +17,7 @@ program recursiveTSLB3D
     !$endif
 
     nlinks=26 !pari!
-    tau=0.5014_db
+    tau=0.50198_db
     cssq=1.0_db/3.0_db
     visc_LB=cssq*(tau-0.5_db)
     one_ov_nu=1.0_db/visc_LB
@@ -30,9 +30,9 @@ program recursiveTSLB3D
 #endif
 
     !*******************************user parameters and allocations**************************
-        nx=128
-        ny=128
-        nz=130
+        nx=1100
+        ny=320
+        nz=66
         nsteps=1000000
         stamp=10000000
         stamp2D=5000
@@ -546,6 +546,7 @@ program recursiveTSLB3D
           endif
         !***********************************dump f************************
           if(mod(step,dumpstep).eq.0) then
+				!$acc update host(f)
                 write(6,'(a,i8)')'dump step at : ',step
                 call dump_distros_1c_3d
           endif

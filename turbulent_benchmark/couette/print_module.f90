@@ -702,8 +702,8 @@
    implicit none
    
    sevt1 = 'dump/' // 'out'//'_'//'f'//'_'// '.raw'
-   open(unit=1045,file=trim(sevt1),status='replace',action='write',access='stream',form='unformatted')
-   do ll=1,nlinks
+   open(unit=1045,file=trim(sevt1),status='replace',form='unformatted')
+   do ll=0,nlinks
       write(1045) f(:,:,:,ll)
    enddo
    close(1045)
@@ -716,10 +716,10 @@
 
       sevt1 = 'dump/' // 'out'//'_'//'f'// '_'// '.raw'
       open(unit=1045,file=trim(sevt1), form='unformatted', status='old')
-      do ll=1,nlinks
+      do ll=0,nlinks
           read(1045) f(:,:,:,ll)
       enddo
-
+      close(1045)
   end subroutine read_distros_1c_3d
 
   subroutine print_raw_slice_sync(iframe)
