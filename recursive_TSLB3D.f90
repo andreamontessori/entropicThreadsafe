@@ -34,10 +34,10 @@ program recursiveTSLB3D
         nx=760
         ny=300
         nz=130
-        nsteps=101
+        nsteps=1
         stamp=2000000
-        stamp2D=100
-        dumpstep=1000
+        stamp2D=1
+        dumpstep=100
         fx=1.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
@@ -251,7 +251,6 @@ program recursiveTSLB3D
               enddo
           elseif(dumpYN.eq.1)then
               call read_distros_1c_3d
-              write(6,*) 'distributions have been read'
           endif
     
     !*************************************check data ************************ 
@@ -552,6 +551,7 @@ program recursiveTSLB3D
         !***********************************dump f************************
           if(mod(step,dumpstep).eq.0) then
                 write(6,'(a,i8)')'dump step at : ',step
+                !$acc update host(f) 
                 call dump_distros_1c_3d
           endif
         !***********************************collision + no slip + forcing: fused implementation*********
