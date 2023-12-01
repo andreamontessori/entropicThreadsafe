@@ -20,6 +20,8 @@ module vars
     real(kind=db), allocatable, dimension(:,:,:) :: rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz
     real(kind=db), allocatable, dimension(:,:,:,:) :: f
     real(kind=db) :: mymemory,totmemory
+	real(kind=db) :: uwall
+	real(kind=4) :: rrx,rry,rrz
 
     !****************************print vars**************************************!
     

@@ -7,7 +7,6 @@ program recursiveTSLB3D
     use bcs3D
     
     implicit none
-    real(kind=4) :: rrx,rry,rrz
     logical :: dumpYN
     integer :: dumpstep
     !$if _OPENACC
@@ -18,7 +17,7 @@ program recursiveTSLB3D
     !$endif
 
     nlinks=26 !pari!
-    tau=0.5009_db
+    tau=0.5004_db
     cssq=1.0_db/3.0_db
     visc_LB=cssq*(tau-0.5_db)
     one_ov_nu=1.0_db/visc_LB
@@ -32,16 +31,17 @@ program recursiveTSLB3D
 #endif
 
     !*******************************user parameters and allocations**************************
-        nx=380
+        nx=150
         ny=150
-        nz=66
-        nsteps=100000
+        nz=600
+        nsteps=1000000
         stamp=2000000
-        stamp2D=5000
+        stamp2D=1000
         dumpstep=100000000
-        fx=1.0_db*10.0**(-7)
+        fx=0.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
+		uwall=0.05
         lprint=.true.
         lvtk=.true.
         lasync=.false.
@@ -82,6 +82,15 @@ program recursiveTSLB3D
         u=0.0_db
         v=0.0_db
         w=0.0_db
+		do i=1,nx
+			do j=1,ny
+				if((float(i)-nx/2.0)**2 + (float(j)-ny/2.0)**2<=10**2)then
+					call random_number(rrx)
+					call random_number(rry)
+					w(i,j,1)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
+				endif
+			enddo
+		enddo
         rho=1.0_db  !tot dens
         !do ll=0,nlinks
         if(dumpYN.eq.0)then
@@ -89,19 +98,6 @@ program recursiveTSLB3D
                   do j=1,ny
                       do i=1,nx
                           if(isfluid(i,j,k).eq.1)then
-                              !turbulent channel init
-                              call random_number(rrx)
-                              call random_number(rry)
-                              call random_number(rrz)
-                              if(k.le.nz/2)then
-                                u(i,j,k)=0.2*((fx/(2*visc_LB))*(k-2)*((nz-2)-(k-2)) + 0.1*rrx*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
-                                v(i,j,k)=0.1*(0.5*rry*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
-                                w(i,j,k)=0.1*(0.5*rrz*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
-                              else
-                                u(i,j,k)=0.1*((fx/(2*visc_LB))*(k-2)*((nz-2)-(k-2)) + 0.1*rrx*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
-                                v(i,j,k)=0.1*(0.5*rry*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
-                                w(i,j,k)=0.1*(0.5*rrz*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
-                              endif
                               !0
                               
                               feq=(-4*rho(i,j,k)*(-2 + 3*u(i,j,k)**2 + 3*v(i,j,k)**2 + 3*w(i,j,k)**2))/27.
@@ -711,7 +707,7 @@ program recursiveTSLB3D
           enddo
           !$acc end kernels
         !***********************************boundary conditions ********************************!
-        call bcs_poiseuille_w_bback      
+        call bcs_turbulent_jet      
     enddo 
     !$acc end data
     call cpu_time(ts2)

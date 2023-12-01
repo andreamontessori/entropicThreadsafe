@@ -4,9 +4,9 @@ program recursiveTSLB3D
     !$endif
     use prints
     use vars
+    use bcs3D
     
     implicit none
-    real(kind=4) :: rrx,rry,rrz
     logical :: dumpYN
     integer :: dumpstep
     !$if _OPENACC
@@ -21,7 +21,7 @@ program recursiveTSLB3D
     cssq=1.0_db/3.0_db
     visc_LB=cssq*(tau-0.5_db)
     one_ov_nu=1.0_db/visc_LB
-    dumpYN=1
+    dumpYN=0
 
 
 #ifdef _OPENACC
@@ -34,13 +34,14 @@ program recursiveTSLB3D
         nx=760
         ny=300
         nz=130
-        nsteps=1
-        stamp=2000000
-        stamp2D=1
-        dumpstep=100
+        nsteps=1000000
+        stamp=10000
+        stamp2D=2000
+        dumpstep=1000000
         fx=1.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
+		uwall=0.05
         lprint=.true.
         lvtk=.true.
         lasync=.false.
@@ -88,18 +89,17 @@ program recursiveTSLB3D
                   do j=1,ny
                       do i=1,nx
                           if(isfluid(i,j,k).eq.1)then
-                              !turbulent channel init
-                              call random_number(rrx)
+							  call random_number(rrx)
                               call random_number(rry)
                               call random_number(rrz)
                               if(k.le.nz/2)then
-                                u(i,j,k)=0.1*((fx/(2*visc_LB))*(k-2)*((nz-2)-(k-2)) + 0.1*rrx*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
-                                v(i,j,k)=0.1*(0.5*rry*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
-                                w(i,j,k)=0.1*(0.5*rrz*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
+                                u(i,j,k)=0.1*((fx/(2*visc_LB))*(k-2)*((nz-2)-(k-2))) + 0.004*sqrt(-2.0*log(rrx))*cos(2*3.1415926535897932384626433832795028841971*rry)
+                                v(i,j,k)=0.04*sqrt(-2.0*log(rrx))*cos(2*3.1415926535897932384626433832795028841971*rry)
+                                w(i,j,k)=0.04*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrz)
                               else
-                                u(i,j,k)=0.1*((fx/(2*visc_LB))*(k-2)*((nz-2)-(k-2)) + 0.1*rrx*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
-                                v(i,j,k)=0.1*(0.5*rry*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
-                                w(i,j,k)=0.1*(0.5*rrz*(fx/(8*visc_LB))*(nz-2)**2*(2/3.))
+                                u(i,j,k)=0.05*((fx/(2*visc_LB))*(k-2)*((nz-2)-(k-2))) + 0.004*sqrt(-2.0*log(rrx))*cos(2*3.1415926535897932384626433832795028841971*rry)
+                                v(i,j,k)=0.04*sqrt(-2.0*log(rrx))*cos(2*3.1415926535897932384626433832795028841971*rry)
+                                w(i,j,k)=0.04*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrz)
                               endif
                               !0
                               
@@ -708,122 +708,9 @@ program recursiveTSLB3D
                   enddo
               enddo
           enddo
-        !***********************************boundary conditions no slip everywhere********************************!
-            !$acc loop independent 
-            do k=1,nz
-                !$acc loop independent 
-                do j=1,ny
-                    !$acc loop independent 
-                    do i=1,nx
-                        if(isfluid(i,j,k).eq.0)then
-                                ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
-                            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
-                            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
-                            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
-                            f(i+1,j-1,k-1,25)=f(i,j,k,26) !gpc 
-                            f(i-1,j+1,k+1,26)=f(i,j,k,25) !hpc
-
-                            f(i-1,j-1,k+1,23)=f(i,j,k,24) !gpc 
-                            f(i+1,j+1,k-1,24)=f(i,j,k,23) !hpc
-
-                            f(i+1,j-1,k+1,21)=f(i,j,k,22) !gpc 
-                            f(i-1,j+1,k-1,22)=f(i,j,k,21) !hpc
-
-                            f(i+1,j+1,k+1,19)=f(i,j,k,20) !gpc 
-                            f(i-1,j-1,k-1,20)=f(i,j,k,19) !hpc
-
-                            f(i+1,j,k-1,18)=f(i,j,k,17) !gpc 
-                            f(i-1,j,k+1,17)=f(i,j,k,18) !hpc
-
-                            f(i-1,j,k-1,16)=f(i,j,k,15) !gpc 
-                            f(i+1,j,k+1,15)=f(i,j,k,16) !hpc
-
-                            f(i,j-1,k+1,14)=f(i,j,k,13)!gpc 
-                            f(i,j+1,k-1,13)=f(i,j,k,14)!hpc
-                            
-                            f(i,j-1,k-1,12)=f(i,j,k,11)!gpc 
-                            f(i,j+1,k+1,11)=f(i,j,k,12)!hpc
-
-                            f(i-1,j+1,k,10)=f(i,j,k,9)!gpc 
-                            f(i+1,j-1,k,9)=f(i,j,k,10)!hpc
-
-                            f(i-1,j-1,k,8)=f(i,j,k,7)!gpc 
-                            f(i+1,j+1,k,7)=f(i,j,k,8)!hpc
-
-                            f(i,j,k-1,6)=f(i,j,k,5)!gpc 
-                            f(i,j,k+1,5)=f(i,j,k,6)!hpc 
-
-                            f(i,j-1,k,4)=f(i,j,k,3)!gpc 
-                            f(i,j+1,k,3)=f(i,j,k,4)!hpc 
-
-                            f(i-1,j,k,2)=f(i,j,k,1)!gpc 
-                            f(i+1,j,k,1)=f(i,j,k,2)!hpc 
-                        endif
-                    enddo
-                enddo
-            enddo
-         !$acc end kernels
-        
-        !*********************************** call other bcs:PERIODIC ************************
-          if(lpbc)then      
-            !periodic along x 
-            !$acc kernels 
-                ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
-
-            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
-            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
-            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
-            
-            f(2,2:ny-1,2:nz-1,1)=f(nx-1,2:ny-1,2:nz-1,1)
-            f(2,2:ny-1,2:nz-1,7)=f(nx-1,2:ny-1,2:nz-1,7)
-            f(2,2:ny-1,2:nz-1,9)=f(nx-1,2:ny-1,2:nz-1,9)
-            f(2,2:ny-1,2:nz-1,15)=f(nx-1,2:ny-1,2:nz-1,15)
-            f(2,2:ny-1,2:nz-1,18)=f(nx-1,2:ny-1,2:nz-1,18)
-            f(2,2:ny-1,2:nz-1,19)=f(nx-1,2:ny-1,2:nz-1,19)
-            f(2,2:ny-1,2:nz-1,21)=f(nx-1,2:ny-1,2:nz-1,21)
-            f(2,2:ny-1,2:nz-1,24)=f(nx-1,2:ny-1,2:nz-1,24)
-            f(2,2:ny-1,2:nz-1,25)=f(nx-1,2:ny-1,2:nz-1,25)
-            
-            f(nx-1,2:ny-1,2:nz-1,2)=f(2,2:ny-1,2:nz-1,2)
-            f(nx-1,2:ny-1,2:nz-1,8)=f(2,2:ny-1,2:nz-1,8)
-            f(nx-1,2:ny-1,2:nz-1,10)=f(2,2:ny-1,2:nz-1,10)
-            f(nx-1,2:ny-1,2:nz-1,16)=f(2,2:ny-1,2:nz-1,16)
-            f(nx-1,2:ny-1,2:nz-1,17)=f(2,2:ny-1,2:nz-1,17)
-            f(nx-1,2:ny-1,2:nz-1,20)=f(2,2:ny-1,2:nz-1,20)
-            f(nx-1,2:ny-1,2:nz-1,22)=f(2,2:ny-1,2:nz-1,22)
-            f(nx-1,2:ny-1,2:nz-1,23)=f(2,2:ny-1,2:nz-1,23)
-            f(nx-1,2:ny-1,2:nz-1,26)=f(2,2:ny-1,2:nz-1,26)
-            !$acc end kernels
-            
-            !periodic along y
-            !$acc kernels 
-                ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
-                
-            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
-            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
-            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
-            
-            f(2:nx-1,2,2:nz-1,3)=f(2:nx-1,ny-1,2:nz-1,3)
-            f(2:nx-1,2,2:nz-1,7)=f(2:nx-1,ny-1,2:nz-1,7)
-            f(2:nx-1,2,2:nz-1,10)=f(2:nx-1,ny-1,2:nz-1,10)
-            f(2:nx-1,2,2:nz-1,11)=f(2:nx-1,ny-1,2:nz-1,11)
-            f(2:nx-1,2,2:nz-1,13)=f(2:nx-1,ny-1,2:nz-1,13)
-            f(2:nx-1,2,2:nz-1,19)=f(2:nx-1,ny-1,2:nz-1,19)
-            f(2:nx-1,2,2:nz-1,22)=f(2:nx-1,ny-1,2:nz-1,22)
-            f(2:nx-1,2,2:nz-1,24)=f(2:nx-1,ny-1,2:nz-1,24)
-            f(2:nx-1,2,2:nz-1,26)=f(2:nx-1,ny-1,2:nz-1,26)
-      
-            f(2:nx-1,ny-1,2:nz-1,4)=f(2:nx-1,2,2:nz-1,4)
-            f(2:nx-1,ny-1,2:nz-1,8)=f(2:nx-1,2,2:nz-1,8)
-            f(2:nx-1,ny-1,2:nz-1,9)=f(2:nx-1,2,2:nz-1,9)
-            f(2:nx-1,ny-1,2:nz-1,12)=f(2:nx-1,2,2:nz-1,12)
-            f(2:nx-1,ny-1,2:nz-1,14)=f(2:nx-1,2,2:nz-1,14)
-            f(2:nx-1,ny-1,2:nz-1,20)=f(2:nx-1,2,2:nz-1,20)
-            f(2:nx-1,ny-1,2:nz-1,21)=f(2:nx-1,2,2:nz-1,21)
-            f(2:nx-1,ny-1,2:nz-1,23)=f(2:nx-1,2,2:nz-1,23)
-            f(2:nx-1,ny-1,2:nz-1,25)=f(2:nx-1,2,2:nz-1,25)
-			      !$acc end kernels
-          endif        
+          !$acc end kernels
+        !***********************************boundary conditions ********************************!
+        call bcs_poiseuille_w_bback      
     enddo 
     !$acc end data
     call cpu_time(ts2)

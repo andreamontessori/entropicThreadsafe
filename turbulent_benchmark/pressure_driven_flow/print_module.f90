@@ -700,20 +700,13 @@
   subroutine dump_distros_1c_3d
   
    implicit none
-   do ll=0,nlinks
-    sevt1 = 'dump/' // 'out'//'_'//'f'//trim(write_fmtnumb(ll))// '.raw'
-    open(unit=1045,file=trim(sevt1),status='replace',form='unformatted')
-    !  do k=1,nz
-    !   do j=1,ny
-    !     do i=1,nx
-          !do ll=0,nlinks
-              write(1045) f(:,:,:,ll)
-          !enddo
-    !     enddo
-    !   enddo
-    !  enddo
-    close(1045)
+   
+   sevt1 = 'dump/' // 'out'//'_'//'f'//'_'// '.raw'
+   open(unit=1045,file=trim(sevt1),status='replace',form='unformatted')
+   do ll=0,26
+      write(1045) f(:,:,:,ll)
    enddo
+   close(1045)
    
   end subroutine dump_distros_1c_3d
 
@@ -721,21 +714,12 @@
 
       implicit none
 
-    do ll=0,nlinks
-    sevt1 = 'dump/' // 'out'//'_'//'f'//trim(write_fmtnumb(ll))// '.raw'
-    open(unit=1045,file=trim(sevt1),form='unformatted',status='old')
-    !  do k=1,nz
-    !   do j=1,ny
-    !     do i=1,nx
-          !do ll=0,nlinks
-              read(1045) f(:,:,:,ll)
-          !enddo
-    !     enddo
-    !   enddo
-    !  enddo
-    close(1045)
-    write(6,*) 'distributions have been read'
-   enddo
+      sevt1 = 'dump/' // 'out'//'_'//'f'// '_'// '.raw'
+      open(unit=1045,file=trim(sevt1), form='unformatted', status='old')
+      do ll=0,26
+          read(1045) f(:,:,:,ll)
+      enddo
+      close(1045)
   end subroutine read_distros_1c_3d
 
   subroutine print_raw_slice_sync(iframe)

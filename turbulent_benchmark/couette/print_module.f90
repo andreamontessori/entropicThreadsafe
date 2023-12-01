@@ -703,7 +703,7 @@
    
    sevt1 = 'dump/' // 'out'//'_'//'f'//'_'// '.raw'
    open(unit=1045,file=trim(sevt1),status='replace',form='unformatted')
-   do ll=0,nlinks
+   do ll=0,26
       write(1045) f(:,:,:,ll)
    enddo
    close(1045)
@@ -716,7 +716,7 @@
 
       sevt1 = 'dump/' // 'out'//'_'//'f'// '_'// '.raw'
       open(unit=1045,file=trim(sevt1), form='unformatted', status='old')
-      do ll=0,nlinks
+      do ll=0,26
           read(1045) f(:,:,:,ll)
       enddo
       close(1045)
