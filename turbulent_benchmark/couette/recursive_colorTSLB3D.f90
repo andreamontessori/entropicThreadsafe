@@ -4,13 +4,11 @@ program recursiveTSLB3D
     !$endif
     use prints
     use vars
-    use bcs3D
     
     implicit none
+    real(kind=4) :: rrx,rry,rrz
     logical :: dumpYN
     integer :: dumpstep
-    real(kind=db) :: one_ov_nu1, one_ov_nu2, st_coeff, sigma, beta, rtot, psi_x, psi_y,psi_z
-    real(kind=db) :: mod_psi, mod_psi_sq, rprod, nu_avg, om1, om2, fpc, b0, b1, b2, b3
     !$if _OPENACC
     integer :: devNum
     integer(acc_device_kind) :: devType
@@ -26,7 +24,8 @@ program recursiveTSLB3D
     tau=1.0_db
     visc_LB=cssq*(tau-0.5_db)
     one_ov_nu2=1.0_db/visc_LB !fluid 2
-    dumpYN=0
+
+    dumpYN=1
 
 
 #ifdef _OPENACC
@@ -39,11 +38,11 @@ program recursiveTSLB3D
         nx=128
         ny=128
         nz=128
-        nsteps=5000
-        stamp=2000000000
-        stamp2D=5000
-        dumpstep=1000000000
-        fx=0.0_db*10.0**(-7)
+        nsteps=1
+        stamp=2000000
+        stamp2D=1
+        dumpstep=100
+        fx=1.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
         lprint=.true.
@@ -55,7 +54,7 @@ program recursiveTSLB3D
         allocate(rhoA(1:nx,1:ny,1:nz),rhoB(1:nx,1:ny,1:nz),u(1:nx,1:ny,1:nz),v(1:nx,1:ny,1:nz),w(1:nx,1:ny,1:nz))
         allocate(pxx(1:nx,1:ny,1:nz),pxy(1:nx,1:ny,1:nz),pxz(1:nx,1:ny,1:nz),pyy(1:nx,1:ny,1:nz))
         allocate(pyz(1:nx,1:ny,1:nz),pzz(1:nx,1:ny,1:nz))
-        allocate(isfluid(1:nx,1:ny,1:nz),psi(1:nx,1:ny,1:nz))
+        allocate(isfluid(1:nx,1:ny,1:nz))
         if(lprint)then
           allocate(rhoprint(1:nx,1:ny,1:nz))
           allocate(velprint(1:3,1:nx,1:ny,1:nz))
@@ -70,10 +69,6 @@ program recursiveTSLB3D
         p1=(2.0_db/27.0_db)
         p2=(1.0_db/54.0_db)
         p3=(1.0_db/216.0_db)
-        b0=-10.0/27.0
-        b1=2.0/27.0
-        b2=1.0/54.0
-        b3=1.0/216.0
         p1dcssq=p1/cssq
         p2dcssq=p2/cssq
         p3dcssq=p3/cssq
@@ -81,8 +76,12 @@ program recursiveTSLB3D
 
     !*********************************chromodynamics vars*****************************
         beta=0.95_db
-        sigma=0.001_db
+        sigma=0.03_db
         st_coeff=(9.0_db/4.0_db)*sigma*omega
+        b0=-10.0_db/27.0_db
+        b1=2.0_db/27.0_db
+        b2=1.0_db/54.0_db
+        b3=1.0_db/216.0_db
     !************************************geometry*************************************
         isfluid=1
         isfluid(1,:,:)=0 !left
@@ -95,20 +94,8 @@ program recursiveTSLB3D
         u=0.0_db
         v=0.0_db
         w=0.0_db
-        rhoA=0.0_db  
-        rhoB=1.0_db
-        psi=-1.0_db
-
-        do k=1,nz
-          do j=1,ny
-            do i=1,nx
-              if(sqrt((float(i)-nx/2.)**2 + (float(j)-ny/2.)**2 + (float(k)-nz/2.)**2)<20)then
-                  rhoA(i,j,k)=1
-                  rhoB(i,j,k)=0  
-              endif
-            enddo
-          enddo
-        enddo
+        rhoA=1.0_db  !tot dens
+        rhoB=0.0_db
         !do ll=0,nlinks
         if(dumpYN.eq.0)then
             do k=1,nz
@@ -117,6 +104,7 @@ program recursiveTSLB3D
                           if(isfluid(i,j,k).eq.1)then
                               !rhoA
                                 !0
+                                
                                 feq=(-4*rhoA(i,j,k)*(-2 + 3*u(i,j,k)**2 + 3*v(i,j,k)**2 + 3*w(i,j,k)**2))/27.
                                 
                                 f(i,j,k,0)=feq 
@@ -145,23 +133,23 @@ program recursiveTSLB3D
                                 
                                 !7
                                 
-                                feq=(2*rhoA(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) + u(i,j,k)*(3 + 9*v(i,j,k)*(1 + v(i,j,k)))) - 3*rhoA(i,j,k)*(1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                                feq=(2*rhoA(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) + u(i,j,k)*(3 + 9*v(i,j,k)*(1 + v(i,j,k)))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
                                 
                                 f(i,j,k,7)=feq 
                                 
                                 !8
-                                feq=(2*rhoA(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(-3 - 9*(-1 + v(i,j,k))*v(i,j,k))) + 3*rhoA(i,j,k)*(-1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                                feq=(2*rhoA(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(-3 - 9*(-1 + v(i,j,k))*v(i,j,k))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
                                 
                                 f(i,j,k,8)=feq 
                                 
                                 !10
                                 
-                                feq=(2*rhoA(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)))) + 3*rhoA(i,j,k)*(-1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                                feq=(2*rhoA(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
                                 
                                 f(i,j,k,10)=feq
                                 
                                 !9
-                                feq=(2*rhoA(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(3 + 9*(-1 + v(i,j,k))*v(i,j,k))) - 3*rhoA(i,j,k)*(1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                                feq=(2*rhoA(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(3 + 9*(-1 + v(i,j,k))*v(i,j,k))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
                                 
                                 f(i,j,k,9)=feq
 
@@ -290,23 +278,23 @@ program recursiveTSLB3D
                                 
                                 !7
                                 
-                                feq=(2*rhoB(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) + u(i,j,k)*(3 + 9*v(i,j,k)*(1 + v(i,j,k)))) - 3*rhoB(i,j,k)*(1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                                feq=(2*rhoB(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) + u(i,j,k)*(3 + 9*v(i,j,k)*(1 + v(i,j,k)))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
                                 
                                 g(i,j,k,7)=feq 
                                 
                                 !8
-                                feq=(2*rhoB(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(-3 - 9*(-1 + v(i,j,k))*v(i,j,k))) + 3*rhoB(i,j,k)*(-1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                                feq=(2*rhoB(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(-3 - 9*(-1 + v(i,j,k))*v(i,j,k))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
                                 
                                 g(i,j,k,8)=feq 
                                 
                                 !10
                                 
-                                feq=(2*rhoB(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)))) + 3*rhoB(i,j,k)*(-1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                                feq=(2*rhoB(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
                                 
                                 g(i,j,k,10)=feq
                                 
                                 !9
-                                feq=(2*rhoB(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(3 + 9*(-1 + v(i,j,k))*v(i,j,k))) - 3*rhoB(i,j,k)*(1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                                feq=(2*rhoB(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(3 + 9*(-1 + v(i,j,k))*v(i,j,k))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
                                 
                                 g(i,j,k,9)=feq
 
@@ -411,6 +399,7 @@ program recursiveTSLB3D
           elseif(dumpYN.eq.1)then
               call read_distros_2c_3d
           endif
+    
     !*************************************check data ************************ 
         write(6,*) '*******************LB data*****************'
         write(6,*) 'tau',tau
@@ -431,9 +420,12 @@ program recursiveTSLB3D
         write(6,*) 'nsteps',nsteps
         write(6,*) 'stamp',stamp
         write(6,*) 'dumpYN', dumpYN
+        write(6,*) 'max fx',huge(fx)
+        write(6,*) 'max fx',huge(fy)
+        write(6,*) 'max fx',huge(fz)
         write(6,*) '*******************************************'
     !$acc data copy(f,g,isfluid,p0,p1,p2,p3,&
-             !$acc& pxx,pyy,pzz,pxy,pxz,pyz,rhoA,rhoB,psi,u,v,w,rhoprint,velprint)
+             !$acc& pxx,pyy,pzz,pxy,pxz,pyz,rhoA,rhoB,u,v,w,rhoprint,velprint)
     !$if _OPENACC        
         call printDeviceProperties(ngpus,devNum,devType,6)
     !$endif
@@ -474,7 +466,7 @@ program recursiveTSLB3D
     do step=1,nsteps 
         !***********************************moments collision bbck + forcing************************ 
           !$acc kernels
-          !$acc loop collapse(3) private(fneq1,feq,uu,udotc,rtot)
+          !$acc loop collapse(3) private(fneq1,feq,temp,uu,udotc)
           do k=1,nz
               do j=1,ny
                   do i=1,nx
@@ -499,26 +491,24 @@ program recursiveTSLB3D
                               +g(i,j,k,18)+g(i,j,k,19)+g(i,j,k,20)+g(i,j,k,21)+g(i,j,k,22)+g(i,j,k,23)+g(i,j,k,24) &
                               +g(i,j,k,25) +g(i,j,k,26)
                               
-                          rtot=rhoA(i,j,k)+rhoB(i,j,k)
 
                           u(i,j,k) = ((f(i,j,k,1)+f(i,j,k,7)+f(i,j,k,9)+f(i,j,k,15)+f(i,j,k,18)+f(i,j,k,19)+f(i,j,k,21)+f(i,j,k,24)+f(i,j,k,25) &
                                       + g(i,j,k,1)+g(i,j,k,7)+g(i,j,k,9)+g(i,j,k,15)+g(i,j,k,18)+g(i,j,k,19)+g(i,j,k,21)+g(i,j,k,24)+g(i,j,k,25)) &
                               -(f(i,j,k,2)+f(i,j,k,8)+f(i,j,k,10)+f(i,j,k,16)+f(i,j,k,17)+f(i,j,k,20)+f(i,j,k,22)+f(i,j,k,23)+f(i,j,k,26)  &
-                              + g(i,j,k,2)+g(i,j,k,8)+g(i,j,k,10)+g(i,j,k,16)+g(i,j,k,17)+g(i,j,k,20)+g(i,j,k,22)+g(i,j,k,23)+g(i,j,k,26)))/rtot
+                              + g(i,j,k,2)+g(i,j,k,8)+g(i,j,k,10)+g(i,j,k,16)+g(i,j,k,17)+g(i,j,k,20)+g(i,j,k,22)+g(i,j,k,23)+g(i,j,k,26)))/rho(i,j,k)
                           
                           v(i,j,k) = ((f(i,j,k,3)+f(i,j,k,7)+f(i,j,k,10)+f(i,j,k,11)+f(i,j,k,13)+f(i,j,k,19)+f(i,j,k,22)+f(i,j,k,24)+f(i,j,k,26) &
                                     + g(i,j,k,3)+g(i,j,k,7)+g(i,j,k,10)+g(i,j,k,11)+g(i,j,k,13)+g(i,j,k,19)+g(i,j,k,22)+g(i,j,k,24)+g(i,j,k,26)) &
                               -(f(i,j,k,4)+f(i,j,k,8)+f(i,j,k,9)+f(i,j,k,12)+f(i,j,k,14)+f(i,j,k,20)+f(i,j,k,21)+f(i,j,k,23)+f(i,j,k,25) &
-                              + g(i,j,k,4)+g(i,j,k,8)+g(i,j,k,9)+g(i,j,k,12)+g(i,j,k,14)+g(i,j,k,20)+g(i,j,k,21)+g(i,j,k,23)+g(i,j,k,25)))/rtot
+                              + g(i,j,k,4)+g(i,j,k,8)+g(i,j,k,9)+g(i,j,k,12)+g(i,j,k,14)+g(i,j,k,20)+g(i,j,k,21)+g(i,j,k,23)+g(i,j,k,25)))/rho(i,j,k)
 
-                          w(i,j,k) = ((f(i,j,k,5)+f(i,j,k,11)+f(i,j,k,14)+f(i,j,k,15)+f(i,j,k,17)+f(i,j,k,19)+f(i,j,k,21)+f(i,j,k,23)+f(i,j,k,26) +&
-                                      g(i,j,k,5)+g(i,j,k,11)+g(i,j,k,14)+g(i,j,k,15)+g(i,j,k,17)+g(i,j,k,19)+g(i,j,k,21)+g(i,j,k,23)+g(i,j,k,26) ) &
-                              -(f(i,j,k,6)+f(i,j,k,12)+f(i,j,k,13)+f(i,j,k,16)+f(i,j,k,18)+f(i,j,k,20)+f(i,j,k,22)+f(i,j,k,24)+f(i,j,k,25) + &
-                                g(i,j,k,6)+g(i,j,k,12)+g(i,j,k,13)+g(i,j,k,16)+g(i,j,k,18)+g(i,j,k,20)+g(i,j,k,22)+g(i,j,k,24)+g(i,j,k,25)))/rtot                        
-                        
+                          w(i,j,k) = ((f(i,j,k,5)+f(i,j,k,11)+f(i,j,k,14)+f(i,j,k,15)+f(i,j,k,17)+f(i,j,k,19)+f(i,j,k,21)+f(i,j,k,23)+f(i,j,k,26) &
+                                    + g(i,j,k,5)+g(i,j,k,11)+g(i,j,k,14)+g(i,j,k,15)+g(i,j,k,17)+g(i,j,k,19)+g(i,j,k,21)+g(i,j,k,23)+g(i,j,k,26)) &
+                              -(f(i,j,k,6)+f(i,j,k,12)+f(i,j,k,13)+f(i,j,k,16)+f(i,j,k,18)+f(i,j,k,20)+f(i,j,k,22)+f(i,j,k,24)+f(i,j,k,25) &
+                               + g(i,j,k,5)+g(i,j,k,11)+g(i,j,k,14)+g(i,j,k,15)+g(i,j,k,17)+g(i,j,k,19)+g(i,j,k,21)+g(i,j,k,23)+g(i,j,k,26)))/rho(i,j,k)                        
                           
-                          
-                          psi(i,j,k)=(rhoA(i,j,k)-rhoB(i,j,k))/rtot
+                          rtot=rhoA(i,j,k)+rhoB(i,j,k)
+                          psi(i,j,k)=rtot/(rhoA(i,j,k)-rhoB(i,j,k))
                           !1-2
                           feq=(rtot*(2 + 6*u(i,j,k) + 6*u(i,j,k)**2 - 3*v(i,j,k)**2 - 9*u(i,j,k)*v(i,j,k)**2 - 3*(1 + 3*u(i,j,k))*w(i,j,k)**2))/27.
                           fneq1=f(i,j,k,1)+g(i,j,k,1)-feq
@@ -541,23 +531,23 @@ program recursiveTSLB3D
                           fneq1=f(i,j,k,6)+g(i,j,k,6)-feq
                           pzz(i,j,k)=pzz(i,j,k)+fneq1
                           !7-8
-                          feq=(2*rtot*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) + u(i,j,k)*(3 + 9*v(i,j,k)*(1 + v(i,j,k)))) - 3*rtot*(1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                          feq=(2*rtot*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) + u(i,j,k)*(3 + 9*v(i,j,k)*(1 + v(i,j,k)))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
                           fneq1=f(i,j,k,7)+g(i,j,k,7)-feq
                           pxx(i,j,k)=pxx(i,j,k)+fneq1
                           pyy(i,j,k)=pyy(i,j,k)+fneq1
                           pxy(i,j,k)=pxy(i,j,k) + fneq1
-                          feq=(2*rtot*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(-3 - 9*(-1 + v(i,j,k))*v(i,j,k))) + 3*rtot*(-1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                          feq=(2*rtot*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(-3 - 9*(-1 + v(i,j,k))*v(i,j,k))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
                           fneq1=f(i,j,k,8)+g(i,j,k,8)-feq
                           pxx(i,j,k)=pxx(i,j,k)+fneq1
                           pyy(i,j,k)=pyy(i,j,k)+fneq1
                           pxy(i,j,k)=pxy(i,j,k)+fneq1
                           !10-9
-                          feq=(2*rtot*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)))) + 3*rtot*(-1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                          feq=(2*rtot*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
                           fneq1=f(i,j,k,10)+g(i,j,k,10)-feq
                           pxx(i,j,k)=pxx(i,j,k)+fneq1
                           pyy(i,j,k)=pyy(i,j,k)+fneq1
                           pxy(i,j,k)=pxy(i,j,k)-fneq1
-                          feq=(2*rtot*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(3 + 9*(-1 + v(i,j,k))*v(i,j,k))) - 3*rtot*(1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                          feq=(2*rtot*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(3 + 9*(-1 + v(i,j,k))*v(i,j,k))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
                           fneq1=f(i,j,k,9)+g(i,j,k,9)-feq
                           pxx(i,j,k)=pxx(i,j,k)+fneq1
                           pyy(i,j,k)=pyy(i,j,k)+fneq1
@@ -727,7 +717,7 @@ program recursiveTSLB3D
           endif
         !***********************************collision + no slip + forcing: fused implementation*********
           !$acc kernels
-          !$acc loop collapse(3) private(fpc,om2,om1,nu_avg,st_coeff,rtot,mod_psi_sq,psi_z,rprod,mod_psi,psi_y,psi_x)
+          !$acc loop collapse(3) private(feq,uu,temp,udotc)
           do k=1,nz
               do j=1,ny
                   do i=1,nx
@@ -755,7 +745,7 @@ program recursiveTSLB3D
                           
                           mod_psi=sqrt(psi_x**2+psi_y**2+psi_z**2)
 
-                          mod_psi_sq=mod_psi**2 
+                          mod_psi_sq=psi_x**2 + psi_y**2 +psi_z**2 
                           
                           rtot=0.0_db
                           
@@ -768,432 +758,470 @@ program recursiveTSLB3D
                           omega=2.0_db/(6.0_db*nu_avg + 1.0_db)
                           
                           st_coeff=(9.0_db/4.0_db)*sigma*omega
-                          om1=0.0_db
-                          om2=0.0_db
+                          addendum0=0.0_db
+                          gaddendum0=0.0_db
                           if (mod_psi>0.001)then
                             !0
-                            om1=-st_coeff*mod_psi*b0 !(5.0_db*st_coeff*mod_psi)/27.0
+                            om1=(5.0_db*st_coeff*mod_psi)/27.0
                             feq=(-4*rtot*(-2 + 3*u(i,j,k)**2 + 3*v(i,j,k)**2 + 3*w(i,j,k)**2))/27.
                             fneq1=(-3*(pxx(i,j,k) + pyy(i,j,k) + pzz(i,j,k)))/2.
                             fpc=feq + (1-omega)*fneq1*p0 + om1
                             f(i,j,k,0)=fpc*rhoA(i,j,k)/rtot
                             g(i,j,k,0)=fpc*rhoB(i,j,k)/rtot
                             !1
-                            om1=st_coeff*mod_psi*(p1*psi_x**2/mod_psi_sq - b1) !(st_coeff*(psi_x - mod_psi_sq))/(27.0*mod_psi)
-                            om2=p1*(rtot)*(rprod*beta*(psi_x/mod_psi)/rtot**2) !(beta*rprod/(rtot*rtot))*(p1*rtot)*psi_x/mod_psi_sq
-                            feq=(rtot*(2 + 6*u(i,j,k) + 6*u(i,j,k)**2 - 3*v(i,j,k)**2 - 9*u(i,j,k)*v(i,j,k)**2 - 3*(1 + 3*u(i,j,k))*w(i,j,k)**2))/27.
+                            om1=(st_coeff*(psi_x - mod_psi_sq))/(27.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p1*rtot)*psi_x/mod_psi_sq
+                            feq=(rho(i,j,k)*(2 + 6*u(i,j,k) + 6*u(i,j,k)**2 - 3*v(i,j,k)**2 - 9*u(i,j,k)*v(i,j,k)**2 - 3*(1 + 3*u(i,j,k))*w(i,j,k)**2))/27.
                             fneq1=(3*(2*pxx(i,j,k) - pzz(i,j,k) - 3*pzz(i,j,k)*u(i,j,k) - pyy(i,j,k)*(1 + 3*u(i,j,k)) - 6*pxy(i,j,k)*v(i,j,k) - 6*pxz(i,j,k)*w(i,j,k)))/2.
                             fpc=feq + (1-omega)*fneq1*p1 + om1 + fx*p1dcssq
                             f(i+1,j,k,1)=fpc*rhoA(i,j,k)/rtot + om2
                             g(i+1,j,k,1)=fpc*rhoB(i,j,k)/rtot - om2
                             !2
-                            !om1=st_coeff*mod_psi*(p1*psi_x**2/mod_psi_sq - b1)!-(st_coeff*(psi_x + mod_psi_sq))/(27.0*mod_psi)
-                            !om2=-p1*(rtot)*(rprod*beta*(psi_x/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p1*rtot)*(-psi_x/mod_psi_sq)
-                            feq=(rtot*(2 - 3*v(i,j,k)**2 - 3*w(i,j,k)**2 + 3*u(i,j,k)*(-2 + 2*u(i,j,k) + 3*v(i,j,k)**2 + 3*w(i,j,k)**2)))/27.
+                            om1=-(st_coeff*(psi_x + mod_psi_sq))/(27.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p1*rtot)*(-psi_x/mod_psi_sq)
+                            feq=(rho(i,j,k)*(2 - 3*v(i,j,k)**2 - 3*w(i,j,k)**2 + 3*u(i,j,k)*(-2 + 2*u(i,j,k) + 3*v(i,j,k)**2 + 3*w(i,j,k)**2)))/27.
                             fneq1=(3*(2*pxx(i,j,k) - pzz(i,j,k) + 3*pzz(i,j,k)*u(i,j,k) + pyy(i,j,k)*(-1 + 3*u(i,j,k)) + 6*pxy(i,j,k)*v(i,j,k) + 6*pxz(i,j,k)*w(i,j,k)))/2.
                             fpc=feq + (1-omega)*fneq1*p1 + om1 - fx*p1dcssq
-                            f(i-1,j,k,2)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i-1,j,k,2)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i-1,j,k,2)=fpc*rhoA(i,j,k)/rtot + om2
+                            g(i-1,j,k,2)=fpc*rhoB(i,j,k)/rtot - om2
                             !3
-                            om2=p1*(rtot)*(rprod*beta*(psi_y/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p1*rtot)*(psi_y/mod_psi_sq)
-                            om1=st_coeff*mod_psi*(p1*psi_y**2/mod_psi_sq - b1) !(st_coeff*(psi_y - mod_psi_sq))/(27.0*mod_psi)
-                            feq=(rtot*(2 - 3*u(i,j,k)**2*(1 + 3*v(i,j,k)) - 3*w(i,j,k)**2 + 3*v(i,j,k)*(2 + 2*v(i,j,k) - 3*w(i,j,k)**2)))/27.
+                            om2=(beta*rprod/(rtot*rtot))*(p1*rtot)*(psi_y/mod_psi_sq)
+                            om1=(st_coeff*(psi_y - mod_psi_sq))/(27.0*mod_psi)
+                            feq=(rho(i,j,k)*(2 - 3*u(i,j,k)**2*(1 + 3*v(i,j,k)) - 3*w(i,j,k)**2 + 3*v(i,j,k)*(2 + 2*v(i,j,k) - 3*w(i,j,k)**2)))/27.
                             fneq1=(-3*(pxx(i,j,k) - 2*pyy(i,j,k) + pzz(i,j,k) + 6*pxy(i,j,k)*u(i,j,k) + 3*pxx(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*w(i,j,k)))/2.
                             fpc=feq+ (1-omega)*fneq1*p1 + om1 + fy*p1dcssq
                             f(i,j+1,k,3)=fpc*rhoA(i,j,k)/rtot + om2
                             g(i,j+1,k,3)=fpc*rhoB(i,j,k)/rtot - om2
                             !4
-                            !om2=-p1*(rtot)*(rprod*beta*(psi_y/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p1*rtot)*(-psi_y/mod_psi_sq)
-                            !om1=st_coeff*mod_psi*(p1*psi_y**2/mod_psi_sq - b1)!-(st_coeff*(psi_y + mod_psi_sq))/(27.0*mod_psi)
-                            feq=(rtot*(2 + u(i,j,k)**2*(-3 + 9*v(i,j,k)) - 3*w(i,j,k)**2 + 3*v(i,j,k)*(-2 + 2*v(i,j,k) + 3*w(i,j,k)**2)))/27.
+                            om2=(beta*rprod/(rtot*rtot))*(p1*rtot)*(-psi_y/mod_psi_sq)
+                            om1=-(st_coeff*(psi_y + mod_psi_sq))/(27.0*mod_psi)
+                            feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(-3 + 9*v(i,j,k)) - 3*w(i,j,k)**2 + 3*v(i,j,k)*(-2 + 2*v(i,j,k) + 3*w(i,j,k)**2)))/27.
                             fneq1=(3*(2*pyy(i,j,k) - pzz(i,j,k) + 6*pxy(i,j,k)*u(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + pxx(i,j,k)*(-1 + 3*v(i,j,k)) + 6*pyz(i,j,k)*w(i,j,k)))/2.
                             fpc=feq+ (1-omega)*fneq1*p1 + om1 - fy*p1dcssq
-                            f(i,j-1,k,4)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i,j-1,k,4)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i,j-1,k,4)=fpc*rhoA(i,j,k)/rtot + om2
+                            g(i,j-1,k,4)=fpc*rhoB(i,j,k)/rtot - om2
                             !7
-                            om1=st_coeff*mod_psi*(p2*(psi_y+psi_x)**2/mod_psi_sq - b2)!(st_coeff*(psi_x + psi_y - mod_psi_sq))/(108.0*mod_psi)
-                            om2=p2*(rtot)*(rprod*beta*((psi_x+psi_y)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_x + psi_y)/(sqrt(2.0)*mod_psi_sq))
-                            feq=(2*rtot*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) + u(i,j,k)*(3 + 9*v(i,j,k)*(1 + v(i,j,k)))) - 3*rtot*(1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                            om1=(st_coeff*(psi_x + psi_y - mod_psi_sq))/(108.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_x + psi_y)/(sqrt(2.0)*mod_psi_sq))
+                            feq=(2*rho(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) + u(i,j,k)*(3 + 9*v(i,j,k)*(1 + v(i,j,k)))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
                             fneq1=(3*(2*pyy(i,j,k) - pzz(i,j,k) + 6*pyy(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + 6*pxy(i,j,k)*(1 + 2*u(i,j,k) + 2*v(i,j,k)) + pxx(i,j,k)*(2 + 6*v(i,j,k)) - 6*pxz(i,j,k)*w(i,j,k) - 6*pyz(i,j,k)*w(i,j,k)))/2.
                             fpc=feq + (1-omega)*fneq1*p2 + om1 + (fx+fy)*p2dcssq 
                             f(i+1,j+1,k,7)=fpc*rhoA(i,j,k)/rtot + om2
                             g(i+1,j+1,k,7)=fpc*rhoB(i,j,k)/rtot - om2
                             !8
-                            !om1=st_coeff*mod_psi*(p2*(psi_y+psi_x)**2/mod_psi_sq - b2) !-(st_coeff*(psi_x + psi_y + mod_psi_sq))/(108.0*mod_psi)
-                            !om2=-p2*(rtot)*(rprod*beta*((psi_x+psi_y)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p2*rtot)*(-(psi_x + psi_y)/(sqrt(2.0)*mod_psi_sq))
-                            feq=(2*rtot*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(-3 - 9*(-1 + v(i,j,k))*v(i,j,k))) + 3*rtot*(-1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                            om1=-(st_coeff*(psi_x + psi_y + mod_psi_sq))/(108.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*(-(psi_x + psi_y)/(sqrt(2.0)*mod_psi_sq))
+                            feq=(2*rho(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(-3 - 9*(-1 + v(i,j,k))*v(i,j,k))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
                             fneq1=(-3*(-2*pyy(i,j,k) + pzz(i,j,k) + 6*pyy(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + 6*pxy(i,j,k)*(-1 + 2*u(i,j,k) + 2*v(i,j,k)) + pxx(i,j,k)*(-2 + 6*v(i,j,k)) - 6*pxz(i,j,k)*w(i,j,k) - 6*pyz(i,j,k)*w(i,j,k)))/2.
                             fpc=feq + (1-omega)*fneq1*p2 + om1 - (fx+fy)*p2dcssq
-                            f(i-1,j-1,k,8)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i-1,j-1,k,8)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i-1,j-1,k,8)=fpc*rhoA(i,j,k)/rtot + om2
+                            g(i-1,j-1,k,8)=fpc*rhoB(i,j,k)/rtot - om2
                             !10
-                            om1=st_coeff*mod_psi*(p2*(psi_y-psi_x)**2/mod_psi_sq - b2)!-((st_coeff*(psi_x - psi_y + mod_psi_sq))/(108.0*mod_psi))
-                            om2=p2*(rtot)*(rprod*beta*((-psi_x+psi_y)/mod_psi)/rtot**2) !(beta*rprod/(rtot*rtot))*(p2*rtot)*(-(psi_x - psi_y)/(sqrt(2.0)*mod_psi_sq))
-                            feq=(2*rtot*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)))) + 3*rtot*(-1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                            om1=-((st_coeff*(psi_x - psi_y + mod_psi_sq))/(108.0*mod_psi))
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*(-(psi_x - psi_y)/(sqrt(2.0)*mod_psi_sq))
+                            feq=(2*rho(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
                             fneq1=(3*(2*pyy(i,j,k) - pzz(i,j,k) - 6*pyy(i,j,k)*u(i,j,k) + 3*pzz(i,j,k)*u(i,j,k) + 6*pxy(i,j,k)*(-1 + 2*u(i,j,k) - 2*v(i,j,k)) - 3*pzz(i,j,k)*v(i,j,k) + pxx(i,j,k)*(2 + 6*v(i,j,k)) + 6*pxz(i,j,k)*w(i,j,k) - 6*pyz(i,j,k)*w(i,j,k)))/2.
                             fpc=feq+ (1-omega)*fneq1*p2 + om1 + (fy-fx)*p2dcssq
                             f(i-1,j+1,k,10)=fpc*rhoA(i,j,k)/rtot + om2
                             g(i-1,j+1,k,10)=fpc*rhoB(i,j,k)/rtot - om2
                             !9
-                            !om2=p2*(rtot)*(rprod*beta*((psi_x-psi_y)/mod_psi)/rtot**2) !(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_x - psi_y)/(sqrt(2.0)*mod_psi_sq))
-                            !om1=st_coeff*mod_psi*(p2*(psi_y-psi_x)**2/mod_psi_sq - b2)!-((st_coeff*(-psi_x + psi_y + mod_psi_sq))/(108.0*mod_psi))
-                            feq=(2*rtot*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(3 + 9*(-1 + v(i,j,k))*v(i,j,k))) - 3*rtot*(1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_x - psi_y)/(sqrt(2.0)*mod_psi_sq))
+                            om1=-((st_coeff*(-psi_x + psi_y + mod_psi_sq))/(108.0*mod_psi))
+                            feq=(2*rho(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(3 + 9*(-1 + v(i,j,k))*v(i,j,k))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
                             fneq1=(-3*(-2*pyy(i,j,k) + pzz(i,j,k) - 6*pyy(i,j,k)*u(i,j,k) + 3*pzz(i,j,k)*u(i,j,k) + 6*pxy(i,j,k)*(1 + 2*u(i,j,k) - 2*v(i,j,k)) - 3*pzz(i,j,k)*v(i,j,k) + pxx(i,j,k)*(-2 + 6*v(i,j,k)) + 6*pxz(i,j,k)*w(i,j,k) - 6*pyz(i,j,k)*w(i,j,k)))/2.
-                            fpc=feq+ (1-omega)*fneq1*p2 + om1 + (fx-fy)*p2dcssq
-                            f(i+1,j-1,k,9)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i+1,j-1,k,9)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i+1,j-1,k,9)=feq+ (1-omega)*fneq1*p2 + (fx-fy)*p2dcssq
 
                             !5
                             
-                            om1=st_coeff*mod_psi*(p1*(psi_z)**2/mod_psi_sq - b1)!(st_coeff*(psi_z - mod_psi_sq))/(27.0*mod_psi)
-                            om2=p1*(rtot)*(rprod*beta*((psi_z)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p1*rtot)*(psi_z/mod_psi_sq)
-                            feq=(rtot*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) - 3*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k))))/27.
+                            om1=(st_coeff*(psi_z - mod_psi_sq))/(27.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p1*rtot)*(psi_z/mod_psi_sq)
+                            feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) - 3*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k))))/27.
                             fneq1=(-3*(pxx(i,j,k) + pyy(i,j,k) - 2*pzz(i,j,k) + 6*pxz(i,j,k)*u(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + 3*pxx(i,j,k)*w(i,j,k) + 3*pyy(i,j,k)*w(i,j,k)))/2.
-                            fpc=feq+ (1-omega)*fneq1*p1 + om1 + fz*p1dcssq
-                            f(i,j,k+1,5)=fpc*rhoA(i,j,k)/rtot + om2
-                            g(i,j,k+1,5)=fpc*rhoB(i,j,k)/rtot - om2
+                            f(i,j,k+1,5)=feq+ (1-omega)*fneq1*p1 + fz*p1dcssq
                             
                             !6
-                            !om1=st_coeff*mod_psi*(p1*(psi_z)**2/mod_psi_sq - b1)!-(st_coeff*(psi_z + mod_psi_sq))/(27.0*mod_psi)
-                            !om2=p1*(rtot)*(rprod*beta*((-psi_z)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p1*rtot)*(-psi_z/mod_psi_sq)
-                            feq=(rtot*(2 + 6*(-1 + w(i,j,k))*w(i,j,k) + u(i,j,k)**2*(-3 + 9*w(i,j,k)) + v(i,j,k)**2*(-3 + 9*w(i,j,k))))/27.
+                            om1=-(st_coeff*(psi_z + mod_psi_sq))/(27.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p1*rtot)*(-psi_z/mod_psi_sq)
+                            feq=(rho(i,j,k)*(2 + 6*(-1 + w(i,j,k))*w(i,j,k) + u(i,j,k)**2*(-3 + 9*w(i,j,k)) + v(i,j,k)**2*(-3 + 9*w(i,j,k))))/27.
                             fneq1=(3*(-pyy(i,j,k) + 2*pzz(i,j,k) + 6*pxz(i,j,k)*u(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + 3*pyy(i,j,k)*w(i,j,k) + pxx(i,j,k)*(-1 + 3*w(i,j,k))))/2.
-                            fpc=feq+ (1-omega)*fneq1*p1 + om1 - fz*p1dcssq
-                            f(i,j,k-1,6)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i,j,k-1,6)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i,j,k-1,6)=feq+ (1-omega)*fneq1*p1 - fz*p1dcssq
 
                             !15
-                            om1=st_coeff*mod_psi*(p2*(psi_z+psi_x)**2/mod_psi_sq - b2)!(st_coeff*(psi_x + psi_z - mod_psi_sq))/(108.0*mod_psi)
-                            om2=p2*(rtot)*(rprod*beta*((psi_z+psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_x + psi_z)/(sqrt(2.0)*mod_psi_sq))
-                            feq=(rtot*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k)) + 3*u(i,j,k)*(2 - 3*v(i,j,k)**2 + 6*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                            om1=(st_coeff*(psi_x + psi_z - mod_psi_sq))/(108.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_x + psi_z)/(sqrt(2.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k)) + 3*u(i,j,k)*(2 - 3*v(i,j,k)**2 + 6*w(i,j,k)*(1 + w(i,j,k)))))/108.
                             fneq1=(3*(-pyy(i,j,k) + 2*pzz(i,j,k) - 3*pyy(i,j,k)*u(i,j,k) + 6*pzz(i,j,k)*u(i,j,k) - 6*pxy(i,j,k)*v(i,j,k) - 6*pyz(i,j,k)*v(i,j,k) - 3*pyy(i,j,k)*w(i,j,k) + 6*pxz(i,j,k)*(1 + 2*u(i,j,k) + 2*w(i,j,k)) + pxx(i,j,k)*(2 + 6*w(i,j,k))))/2.
-                            fpc=feq+ (1-omega)*fneq1*p2 + om1 + (fx+fz)*p2dcssq 
-                            f(i+1,j,k+1,15)=fpc*rhoA(i,j,k)/rtot + om2
-                            g(i+1,j,k+1,15)=fpc*rhoB(i,j,k)/rtot - om2
+                            f(i+1,j,k+1,15)=feq+ (1-omega)*fneq1*p2 + (fx+fz)*p2dcssq 
                             
                             !16
-                            !om1=st_coeff*mod_psi*(p2*(psi_z+psi_x)**2/mod_psi_sq - b2)!-(st_coeff*(psi_x + psi_z + mod_psi_sq))/(108.0*mod_psi)
-                            !om2=-p2*(rtot)*(rprod*beta*((psi_z+psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p2*rtot)*(-(psi_x + psi_z)/(sqrt(2.0)*mod_psi_sq))
-                            feq=(rtot*(2 + u(i,j,k)**2*(6 - 18*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)**2*(-3 + 9*w(i,j,k)) + 3*u(i,j,k)*(-2 + 3*v(i,j,k)**2 - 6*(-1 + w(i,j,k))*w(i,j,k))))/108.
+                            om1=-(st_coeff*(psi_x + psi_z + mod_psi_sq))/(108.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*(-(psi_x + psi_z)/(sqrt(2.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(6 - 18*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)**2*(-3 + 9*w(i,j,k)) + 3*u(i,j,k)*(-2 + 3*v(i,j,k)**2 - 6*(-1 + w(i,j,k))*w(i,j,k))))/108.
                             fneq1=(3*(-pyy(i,j,k) + 2*pzz(i,j,k) + 3*pyy(i,j,k)*u(i,j,k) - 6*pzz(i,j,k)*u(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + pxx(i,j,k)*(2 - 6*w(i,j,k)) + 3*pyy(i,j,k)*w(i,j,k) - 6*pxz(i,j,k)*(-1 + 2*u(i,j,k) + 2*w(i,j,k))))/2.
-                            fpc=feq+ (1-omega)*fneq1*p2 + om1 - (fx+fz)*p2dcssq
-                            f(i-1,j,k-1,16)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i-1,j,k-1,16)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i-1,j,k-1,16)=feq+ (1-omega)*fneq1*p2 - (fx+fz)*p2dcssq
 
                             !17
-                            om1=st_coeff*mod_psi*(p2*(psi_z-psi_x)**2/mod_psi_sq - b2)!-((st_coeff*(psi_x - psi_z + mod_psi_sq))/(108.0*mod_psi))
-                            om2=p2*(rtot)*(rprod*beta*((psi_z-psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p2*rtot)*((-psi_x + psi_z)/(sqrt(2.0)*mod_psi_sq))
-                            feq=(rtot*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k)) + 3*u(i,j,k)*(-2 + 3*v(i,j,k)**2 - 6*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                            om1=-((st_coeff*(psi_x - psi_z + mod_psi_sq))/(108.0*mod_psi))
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*((-psi_x + psi_z)/(sqrt(2.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k)) + 3*u(i,j,k)*(-2 + 3*v(i,j,k)**2 - 6*w(i,j,k)*(1 + w(i,j,k)))))/108.
                             fneq1=(3*(-pyy(i,j,k) + 2*pzz(i,j,k) + 3*pyy(i,j,k)*u(i,j,k) - 6*pzz(i,j,k)*u(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) - 6*pyz(i,j,k)*v(i,j,k) + 6*pxz(i,j,k)*(-1 + 2*u(i,j,k) - 2*w(i,j,k)) - 3*pyy(i,j,k)*w(i,j,k) + pxx(i,j,k)*(2 + 6*w(i,j,k))))/2.
-                            fpc=feq+ (1-omega)*fneq1*p2 + om1 + (fz-fx)*p2dcssq
-                            f(i-1,j,k+1,17)=fpc*rhoA(i,j,k)/rtot + om2
-                            g(i-1,j,k+1,17)=fpc*rhoB(i,j,k)/rtot - om2
+                            f(i-1,j,k+1,17)=feq+ (1-omega)*fneq1*p2 + (fz-fx)*p2dcssq
                             
                             !18
-                            !om1=st_coeff*mod_psi*(p2*(psi_z-psi_x)**2/mod_psi_sq - b2)!-((st_coeff*(-psi_x + psi_z + mod_psi_sq))/(108.0*mod_psi))
-                            !om2=p2*(rtot)*(rprod*beta*((-psi_z+psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_x - psi_z)/(sqrt(2.0)*mod_psi_sq))
-                            feq=(rtot*(2 + u(i,j,k)**2*(6 - 18*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)**2*(-3 + 9*w(i,j,k)) + 3*u(i,j,k)*(2 - 3*v(i,j,k)**2 + 6*(-1 + w(i,j,k))*w(i,j,k))))/108.
+                            om1=-((st_coeff (-psi_x + psi_z + mod_psi_sq))/(108.0*mod_psi))
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_x - psi_z)/(sqrt(2.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(6 - 18*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)**2*(-3 + 9*w(i,j,k)) + 3*u(i,j,k)*(2 - 3*v(i,j,k)**2 + 6*(-1 + w(i,j,k))*w(i,j,k))))/108.
                             fneq1=(-3*(pyy(i,j,k) - 2*pzz(i,j,k) + 3*pyy(i,j,k)*u(i,j,k) - 6*pzz(i,j,k)*u(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) - 6*pyz(i,j,k)*v(i,j,k) + 6*pxz(i,j,k)*(1 + 2*u(i,j,k) - 2*w(i,j,k)) - 3*pyy(i,j,k)*w(i,j,k) + pxx(i,j,k)*(-2 + 6*w(i,j,k))))/2.
-                            fpc=feq+ (1-omega)*fneq1*p2 + om1 + (fx-fz)*p2dcssq
-                            f(i+1,j,k-1,18)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i+1,j,k-1,18)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i+1,j,k-1,18)=feq+ (1-omega)*fneq1*p2 + (fx-fz)*p2dcssq
 
                             !11
-                            om1=st_coeff*mod_psi*(p2*(psi_z+psi_y)**2/mod_psi_sq - b2)!!(st_coeff*(psi_y + psi_z - mod_psi_sq))/(108.0*mod_psi)
-                            om2=p2*(rtot)*(rprod*beta*((psi_z+psi_y)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_y + psi_z)/(sqrt(2.0)*mod_psi_sq))
-                            feq=(rtot*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*v(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*u(i,j,k)**2*(1 + 3*v(i,j,k) + 3*w(i,j,k)) + 2*v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                            om1=(st_coeff*(psi_y + psi_z - mod_psi_sq))/(108.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_y + psi_z)/(sqrt(2.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*v(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*u(i,j,k)**2*(1 + 3*v(i,j,k) + 3*w(i,j,k)) + 2*v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k)))))/108.
                             fneq1=(-3*pxx(i,j,k)*(1 + 3*v(i,j,k) + 3*w(i,j,k)))/2. + 3*(pyy(i,j,k) + pzz(i,j,k) - 3*pxy(i,j,k)*u(i,j,k) - 3*pxz(i,j,k)*u(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + 3*pyy(i,j,k)*w(i,j,k) + pyz(i,j,k)*(3 + 6*v(i,j,k) + 6*w(i,j,k)))
-                            fpc=feq+ (1-omega)*fneq1*p2 + om1 + (fy+fz)*p2dcssq
-                            f(i,j+1,k+1,11)=fpc*rhoA(i,j,k)/rtot + om2
-                            g(i,j+1,k+1,11)=fpc*rhoB(i,j,k)/rtot - om2
+                            f(i,j+1,k+1,11)=feq+ (1-omega)*fneq1*p2 + (fy+fz)*p2dcssq
                             
                             !12
-                            !om1=st_coeff*mod_psi*(p2*(psi_z+psi_y)**2/mod_psi_sq - b2)!-(st_coeff*(psi_y + psi_z + mod_psi_sq))/(108.0*mod_psi)
-                            !om2=-p2*(rtot)*(rprod*beta*((psi_z+psi_y)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p2*rtot)*(-(psi_y + psi_z)/(sqrt(2.0)*mod_psi_sq))
-                            feq=(rtot*(2 + 2*v(i,j,k)**2*(3 - 9*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + u(i,j,k)**2*(-3 + 9*v(i,j,k) + 9*w(i,j,k)) + 2*v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k))))/108.
+                            om1=-(st_coeff*(psi_y + psi_z + mod_psi_sq))/(108.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*(-(psi_y + psi_z)/(sqrt(2.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(2 + 2*v(i,j,k)**2*(3 - 9*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + u(i,j,k)**2*(-3 + 9*v(i,j,k) + 9*w(i,j,k)) + 2*v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k))))/108.
                             fneq1=(3*pxx(i,j,k)*(-1 + 3*v(i,j,k) + 3*w(i,j,k)))/2. + 3*(pyy(i,j,k) + pzz(i,j,k) + 3*pxy(i,j,k)*u(i,j,k) + 3*pxz(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + pyz(i,j,k)*(3 - 6*v(i,j,k) - 6*w(i,j,k)) - 3*pyy(i,j,k)*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p2 + om1 - (fy+fz)*p2dcssq
-                            f(i,j-1,k-1,12)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i,j-1,k-1,12)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i,j-1,k-1,12)=feq+ (1-omega)*fneq1*p2 - (fy+fz)*p2dcssq
 
                             !13
-                            om1=st_coeff*mod_psi*(p2*(-psi_z+psi_y)**2/mod_psi_sq - b2)!-((st_coeff*(-psi_y + psi_z + mod_psi_sq))/(108.0*mod_psi))
-                            om2=p2*(rtot)*(rprod*beta*((-psi_z+psi_y)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_y - psi_z)/(sqrt(2.0)*mod_psi_sq))
-                            feq=(rtot*(2 - 6*w(i,j,k) + u(i,j,k)**2*(-3 - 9*v(i,j,k) + 9*w(i,j,k)) + 6*(v(i,j,k) + v(i,j,k)**2*(1 - 3*w(i,j,k)) + 3*v(i,j,k)*(-1 + w(i,j,k))*w(i,j,k) + w(i,j,k)**2)))/108.
+                            om1=-((st_coeff*(-psi_y + psi_z + mod_psi_sq))/(108.0*mod_psi))
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*((psi_y - psi_z)/(sqrt(2.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(2 - 6*w(i,j,k) + u(i,j,k)**2*(-3 - 9*v(i,j,k) + 9*w(i,j,k)) + 6*(v(i,j,k) + v(i,j,k)**2*(1 - 3*w(i,j,k)) + 3*v(i,j,k)*(-1 + w(i,j,k))*w(i,j,k) + w(i,j,k)**2)))/108.
                             fneq1=(-3*(pxx(i,j,k) - 2*pyy(i,j,k) + 6*pyz(i,j,k) - 2*pzz(i,j,k) + 6*pxy(i,j,k)*u(i,j,k) - 6*pxz(i,j,k)*u(i,j,k) + 3*pxx(i,j,k)*v(i,j,k) + 12*pyz(i,j,k)*v(i,j,k) - 6*pzz(i,j,k)*v(i,j,k) - 3*pxx(i,j,k)*w(i,j,k) + 6*pyy(i,j,k)*w(i,j,k) - 12*pyz(i,j,k)*w(i,j,k)))/2.
-                            fpc= feq+ (1-omega)*fneq1*p2 + om1 + (fy-fz)*p2dcssq
-                            f(i,j+1,k-1,13)=fpc*rhoA(i,j,k)/rtot + om2
-                            g(i,j+1,k-1,13)=fpc*rhoB(i,j,k)/rtot - om2
+                            f(i,j+1,k-1,13)=feq+ (1-omega)*fneq1*p2 + (fy-fz)*p2dcssq
                             
                             !14
-                            !om1=st_coeff*mod_psi*(p2*(-psi_z+psi_y)**2/mod_psi_sq - b2)!-((st_coeff*(psi_y - psi_z + mod_psi_sq))/(108.0*mod_psi))
-                            !om2=p2*(rtot)*(rprod*beta*((psi_z-psi_y)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p2*rtot)*(-(psi_y - psi_z)/(sqrt(2.0)*mod_psi_sq))
-                            feq=(rtot*(2 + u(i,j,k)**2*(-3 + 9*v(i,j,k) - 9*w(i,j,k)) + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*v(i,j,k)**2*(1 + 3*w(i,j,k)) - 6*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                            om1=-((st_coeff*(psi_y - psi_z + mod_psi_sq))/(108.0*mod_psi))
+                            om2=(beta*rprod/(rtot*rtot))*(p2*rtot)*(-(psi_y - psi_z)/(sqrt(2.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(-3 + 9*v(i,j,k) - 9*w(i,j,k)) + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*v(i,j,k)**2*(1 + 3*w(i,j,k)) - 6*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)))))/108.
                             fneq1=(3*pxx(i,j,k)*(-1 + 3*v(i,j,k) - 3*w(i,j,k)))/2. + 3*(pyy(i,j,k) + pzz(i,j,k) + 3*pxy(i,j,k)*u(i,j,k) - 3*pxz(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + pyz(i,j,k)*(-3 + 6*v(i,j,k) - 6*w(i,j,k)) + 3*pyy(i,j,k)*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p2 + om1 + (fz-fy)*p2dcssq
-                            f(i,j-1,k+1,14)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i,j-1,k+1,14)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i,j-1,k+1,14)=feq+ (1-omega)*fneq1*p2 + (fz-fy)*p2dcssq
 
                             !19
-                            om1=st_coeff*mod_psi*(p3*(psi_z+psi_y+psi_x)**2/mod_psi_sq - b3)!(st_coeff*(psi_x + psi_y + psi_z - mod_psi_sq))/(432.0*mod_psi)
-                            om2=p3*(rtot)*(rprod*beta*((psi_z+psi_y+psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p3*rtot)*((psi_x + psi_y + psi_z)/(sqrt(3.0)*mod_psi_sq))
-                            feq=(rtot*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) + 9*w(i,j,k)) + v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k))) + 3*u(i,j,k)*(1 + 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 + 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
+                            om1=(st_coeff*(psi_x + psi_y + psi_z - mod_psi_sq))/(432.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p3*rtot)*((psi_x + psi_y + psi_z)/(sqrt(3.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) + 9*w(i,j,k)) + v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k))) + 3*u(i,j,k)*(1 + 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 + 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
                             fneq1=3*(pxx(i,j,k) + (pyy(i,j,k) + 3*pyz(i,j,k) + pzz(i,j,k))*(1 + 3*u(i,j,k)) + pxy(i,j,k)*(3 + 6*u(i,j,k)) + pxz(i,j,k)*(3 + 6*u(i,j,k)) + 3*pxx(i,j,k)*v(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) + 9*pxz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + 3*(pxx(i,j,k) + 3*pxy(i,j,k) + 2*pxz(i,j,k) + pyy(i,j,k) + 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq + (1-omega)*fneq1*p3 + om1 + (fz+fy+fx)*p3dcssq
-                            f(i+1,j+1,k+1,19)=fpc*rhoA(i,j,k)/rtot + om2
-                            g(i+1,j+1,k+1,19)=fpc*rhoB(i,j,k)/rtot - om2
+                            f(i+1,j+1,k+1,19)=feq + (1-omega)*fneq1*p3 + (fz+fy+fx)*p3dcssq
                             
                             !20
-                            !om1=st_coeff*mod_psi*(p3*(psi_z+psi_y+psi_x)**2/mod_psi_sq - b3)!-(st_coeff*(psi_x + psi_y + psi_z + mod_psi_sq))/(432.0*mod_psi)
-                            !om2=-p3*(rtot)*(rprod*beta*((psi_z+psi_y+psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p3*rtot)*(-(psi_x + psi_y + psi_z)/(sqrt(3.0)*mod_psi_sq))
-                            feq=(rtot*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 + 9*w(i,j,k)))))/216.
+                            om1=-(st_coeff*(psi_x + psi_y + psi_z + mod_psi_sq))/(432.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p3*rtot)*(-(psi_x + psi_y + psi_z)/(sqrt(3.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 + 9*w(i,j,k)))))/216.
                             fneq1=-3*((pyy(i,j,k) + 3*pyz(i,j,k) + pzz(i,j,k))*(-1 + 3*u(i,j,k)) + pxy(i,j,k)*(-3 + 6*u(i,j,k)) + pxz(i,j,k)*(-3 + 6*u(i,j,k)) + 3*(2*pxy(i,j,k) + 3*pxz(i,j,k) + 2*pyz(i,j,k) + pzz(i,j,k))*v(i,j,k) + 3*(3*pxy(i,j,k) + 2*pxz(i,j,k) + pyy(i,j,k) + 2*pyz(i,j,k))*w(i,j,k) + pxx(i,j,k)*(-1 + 3*v(i,j,k) + 3*w(i,j,k)))
-                            fpc=feq+ (1-omega)*fneq1*p3 + om1 - (fz+fy+fx)*p3dcssq
-                            f(i-1,j-1,k-1,20)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i-1,j-1,k-1,20)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i-1,j-1,k-1,20)=feq+ (1-omega)*fneq1*p3 - (fz+fy+fx)*p3dcssq
 
                             !21
-                            om1=st_coeff*mod_psi*(p3*(psi_z-psi_y+psi_x)**2/mod_psi_sq - b3)!(st_coeff*(psi_x - psi_y + psi_z - mod_psi_sq))/(432.0*mod_psi)
-                            om2=p3*(rtot)*(rprod*beta*((psi_z-psi_y+psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p3*rtot)*((psi_x - psi_y + psi_z)/(sqrt(3.0)*mod_psi_sq))
-                            feq=(rtot*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) + 9*w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k))) + 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*w(i,j,k)*(1 + w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)))))/216.
+                            om1=(st_coeff*(psi_x - psi_y + psi_z - mod_psi_sq))/(432.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p3*rtot)*((psi_x - psi_y + psi_z)/(sqrt(3.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) + 9*w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k))) + 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*w(i,j,k)*(1 + w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)))))/216.
                             fneq1=3*(pxx(i,j,k) - 3*pxy(i,j,k)*(1 + 2*u(i,j,k)) + (pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k))*(1 + 3*u(i,j,k)) + pxz(i,j,k)*(3 + 6*u(i,j,k)) - 3*pxx(i,j,k)*v(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) - 9*pxz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + 3*(pxx(i,j,k) - 3*pxy(i,j,k) + 2*pxz(i,j,k) + pyy(i,j,k) - 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p3 + om1 + (fx-fy+fz)*p3dcssq
-                            f(i+1,j-1,k+1,21)=fpc*rhoA(i,j,k)/rtot + om2
-                            g(i+1,j-1,k+1,21)=fpc*rhoB(i,j,k)/rtot - om2
+                            f(i+1,j-1,k+1,21)=feq+ (1-omega)*fneq1*p3 + (fx-fy+fz)*p3dcssq
                             
                             !22
-                            !om1=st_coeff*mod_psi*(p3*(psi_z-psi_y+psi_x)**2/mod_psi_sq - b3)!-(st_coeff*(psi_x - psi_y + psi_z + mod_psi_sq))/(432.0*mod_psi)
-                            !om2=p3*(rtot)*(rprod*beta*((-psi_z+psi_y-psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p3*rtot)*(-(psi_x - psi_y + psi_z)/(sqrt(3.0)*mod_psi_sq))
-                            feq=(rtot*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(3 + 9*(-1 + w(i,j,k))*w(i,j,k)) - 3*u(i,j,k)*(1 - 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 - 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
+                            om1=-(st_coeff*(psi_x - psi_y + psi_z + mod_psi_sq))/(432.0*mod_psi)
+                            om2=(beta*rprod/(rtot*rtot))*(p3*rtot)*(-(psi_x - psi_y + psi_z)/(sqrt(3.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(3 + 9*(-1 + w(i,j,k))*w(i,j,k)) - 3*u(i,j,k)*(1 - 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 - 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
                             fneq1=3*(pxx(i,j,k) + 3*pxz(i,j,k) + pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k) - 3*(2*pxz(i,j,k) + pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k))*u(i,j,k) + pxy(i,j,k)*(-3 + 6*u(i,j,k)) + 3*pxx(i,j,k)*v(i,j,k) - 6*pxy(i,j,k)*v(i,j,k) + 9*pxz(i,j,k)*v(i,j,k) - 6*pyz(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) - 3*(pxx(i,j,k) - 3*pxy(i,j,k) + 2*pxz(i,j,k) + pyy(i,j,k) - 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p3 + om1 - (fx-fy+fz)*p3dcssq
-                            f(i-1,j+1,k-1,22)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i-1,j+1,k-1,22)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i-1,j+1,k-1,22)=feq+ (1-omega)*fneq1*p3 - (fx-fy+fz)*p3dcssq
 
                             !23
-                            om1=st_coeff*mod_psi*(p3*(psi_z-psi_y-psi_x)**2/mod_psi_sq - b3)!-((st_coeff*(psi_x + psi_y - psi_z + mod_psi_sq))/(432.0*mod_psi))
-                            om2=p3*(rtot)*(rprod*beta*((psi_z-psi_y-psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p3*rtot)*(-(psi_x + psi_y - psi_z)/(sqrt(3.0)*mod_psi_sq))
-                            feq=(rtot*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) + 9*w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k))) - 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*w(i,j,k)*(1 + w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)))))/216.
+                            om1=-((st_coeff*(psi_x + psi_y - psi_z + mod_psi_sq))/(432.0*mod_psi))
+                            om2=(beta*rprod/(rtot*rtot))*(p3*rtot)*(-(psi_x + psi_y - psi_z)/(sqrt(3.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) + 9*w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k))) - 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*w(i,j,k)*(1 + w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)))))/216.
                             fneq1=3*(pxx(i,j,k) + 3*pxy(i,j,k) - 3*pxz(i,j,k) + pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k) - 3*(2*pxy(i,j,k) - 2*pxz(i,j,k) + pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k))*u(i,j,k) - 3*pxx(i,j,k)*v(i,j,k) - 6*pxy(i,j,k)*v(i,j,k) + 9*pxz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + 3*(pxx(i,j,k) + 3*pxy(i,j,k) - 2*pxz(i,j,k) + pyy(i,j,k) - 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p3 + om1 + (fz-fy-fx)*p3dcssq
-                            f(i-1,j-1,k+1,23)=fpc*rhoA(i,j,k)/rtot + om2
-                            g(i-1,j-1,k+1,23)=fpc*rhoB(i,j,k)/rtot - om2
+                            f(i-1,j-1,k+1,23)=feq+ (1-omega)*fneq1*p3 + (fz-fy-fx)*p3dcssq
 
                             !24
-                            !om1=st_coeff*mod_psi*(p3*(psi_z-psi_y-psi_x)**2/mod_psi_sq - b3)!(st_coeff*(psi_x + psi_y - psi_z - mod_psi_sq))/(432.0*mod_psi)
-                            !om2=p3*(rtot)*(rprod*beta*((-psi_z+psi_y+psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p3*rtot)*((psi_x + psi_y - psi_z)/(sqrt(3.0)*mod_psi_sq))
-                            feq=(rtot*(1 + 3*v(i,j,k) - 3*w(i,j,k)+ 3*(u(i,j,k) + u(i,j,k)**2 + 3*u(i,j,k)*v(i,j,k) + 3*u(i,j,k)**2*v(i,j,k) + v(i,j,k)**2 + 3*u(i,j,k)*v(i,j,k)**2 - 3*(u(i,j,k) + u(i,j,k)**2 + v(i,j,k) + 3*u(i,j,k)*v(i,j,k) + v(i,j,k)**2)*w(i,j,k) + (1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)))/216.
+                            om1=((st_coeff*(psi_x + psi_y - psi_z - mod_psi_sq))/(432.0*mod_psi))
+                            om2=(beta*rprod/(rtot*rtot))*(p3*rtot)*((psi_x + psi_y - psi_z)/(sqrt(3.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(1 + 3*v(i,j,k) - 3*w(i,j,k)+ 3*(u(i,j,k) + u(i,j,k)**2 + 3*u(i,j,k)*v(i,j,k) + 3*u(i,j,k)**2*v(i,j,k) + v(i,j,k)**2 + 3*u(i,j,k)*v(i,j,k)**2 - 3*(u(i,j,k) + u(i,j,k)**2 + v(i,j,k) + 3*u(i,j,k)*v(i,j,k) + v(i,j,k)**2)*w(i,j,k) + (1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)))/216.
                             fneq1=3*(pxx(i,j,k) - 3*pxz(i,j,k)*(1 + 2*u(i,j,k)) + (pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k))*(1 + 3*u(i,j,k)) + pxy(i,j,k)*(3 + 6*u(i,j,k)) + 3*pxx(i,j,k)*v(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) - 9*pxz(i,j,k)*v(i,j,k) - 6*pyz(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) - 3*(pxx(i,j,k) + 3*pxy(i,j,k) - 2*pxz(i,j,k) + pyy(i,j,k) - 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p3 + om1 + (-fz+fy+fx)*p3dcssq
-                            f(i+1,j+1,k-1,24)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i+1,j+1,k-1,24)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i+1,j+1,k-1,24)=feq+ (1-omega)*fneq1*p3 + (-fz+fy+fx)*p3dcssq
 
                             !25
-                            om1=st_coeff*mod_psi*(p3*(-psi_z-psi_y+psi_x)**2/mod_psi_sq - b3)!-((st_coeff*(-psi_x + psi_y + psi_z + mod_psi_sq))/(432.0*mod_psi))
-                            om2=p3*(rtot)*(rprod*beta*((-psi_z-psi_y+psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p3*rtot)*((psi_x - psi_y - psi_z)/(sqrt(3.0)*mod_psi_sq))
-                            feq=(rtot*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k)) + 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 + 9*w(i,j,k)))))/216.
+                            om1=-((st_coeff*(-psi_x + psi_y + psi_z + mod_psi_sq))/(432.0*mod_psi))
+                            om2=(beta*rprod/(rtot*rtot))*(p3*rtot)*((psi_x - psi_y - psi_z)/(sqrt(3.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k)) + 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 + 9*w(i,j,k)))))/216.
                             fneq1=-3*(-pxx(i,j,k) - (pyy(i,j,k) + 3*pyz(i,j,k) + pzz(i,j,k))*(1 + 3*u(i,j,k)) + pxy(i,j,k)*(3 + 6*u(i,j,k)) + pxz(i,j,k)*(3 + 6*u(i,j,k)) + 3*pxx(i,j,k)*v(i,j,k) - 6*pxy(i,j,k)*v(i,j,k) - 9*pxz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + 3*(pxx(i,j,k) - 3*pxy(i,j,k) - 2*pxz(i,j,k) + pyy(i,j,k) + 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq + (1-omega)*fneq1*p3 + om1 + (-fz-fy+fx)*p3dcssq
-                            f(i+1,j-1,k-1,25)=fpc*rhoA(i,j,k)/rtot + om2
-                            g(i+1,j-1,k-1,25)=fpc*rhoB(i,j,k)/rtot - om2
+                            f(i+1,j-1,k-1,25)=feq + (1-omega)*fneq1*p3 + (-fz-fy+fx)*p3dcssq
 
                             !26
-                            !om1=st_coeff*mod_psi*(p3*(-psi_z - psi_y + psi_x)**2/mod_psi_sq - b3)!((st_coeff*(-psi_x + psi_y + psi_z - mod_psi_sq))/(432.0*mod_psi))
-                            !om2=p3*(rtot)*(rprod*beta*((psi_z+psi_y-psi_x)/mod_psi)/rtot**2)!(beta*rprod/(rtot*rtot))*(p3*rtot)*(-(psi_x - psi_y - psi_z)/(sqrt(3.0)*mod_psi_sq))
-                            feq=(rtot*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) + 9*w(i,j,k)) + v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k))) - 3*u(i,j,k)*(1 + 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 + 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
+                            om1=((st_coeff*(-psi_x + psi_y + psi_z - mod_psi_sq))/(432.0*mod_psi))
+                            om2=(beta*rprod/(rtot*rtot))*(p3*rtot)*(-(psi_x - psi_y - psi_z)/(sqrt(3.0)*mod_psi_sq))
+                            feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) + 9*w(i,j,k)) + v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k))) - 3*u(i,j,k)*(1 + 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 + 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
                             fneq1=3*(pxx(i,j,k) - (pyy(i,j,k) + 3*pyz(i,j,k) + pzz(i,j,k))*(-1 + 3*u(i,j,k)) + pxy(i,j,k)*(-3 + 6*u(i,j,k)) + pxz(i,j,k)*(-3 + 6*u(i,j,k)) + 3*pxx(i,j,k)*v(i,j,k) - 6*pxy(i,j,k)*v(i,j,k) - 9*pxz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + 3*(pxx(i,j,k) - 3*pxy(i,j,k) - 2*pxz(i,j,k) + pyy(i,j,k) + 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq + (1-omega)*fneq1*p3 + om1 + (fz+fy-fx)*p3dcssq
-                            f(i-1,j+1,k+1,26)=fpc*rhoA(i,j,k)/rtot - om2
-                            g(i-1,j+1,k+1,26)=fpc*rhoB(i,j,k)/rtot + om2
+                            f(i-1,j+1,k+1,26)=feq + (1-omega)*fneq1*p3 + (fz+fy-fx)*p3dcssq
                           else
                             !0
-                            feq=(-4*rtot*(-2 + 3*u(i,j,k)**2 + 3*v(i,j,k)**2 + 3*w(i,j,k)**2))/27.
+                            feq=(-4*rho(i,j,k)*(-2 + 3*u(i,j,k)**2 + 3*v(i,j,k)**2 + 3*w(i,j,k)**2))/27.
                             fneq1=(-3*(pxx(i,j,k) + pyy(i,j,k) + pzz(i,j,k)))/2.
-                            fpc=feq + (1-omega)*fneq1*p0 
-                            f(i,j,k,0)=fpc*rhoA(i,j,k)/rtot
-                            g(i,j,k,0)=fpc*rhoB(i,j,k)/rtot
+                            f(i,j,k,0)=feq + (1-omega)*fneq1*p0
+                            
                             !1
-                            feq=(rtot*(2 + 6*u(i,j,k) + 6*u(i,j,k)**2 - 3*v(i,j,k)**2 - 9*u(i,j,k)*v(i,j,k)**2 - 3*(1 + 3*u(i,j,k))*w(i,j,k)**2))/27.
+                            
+                            feq=(rho(i,j,k)*(2 + 6*u(i,j,k) + 6*u(i,j,k)**2 - 3*v(i,j,k)**2 - 9*u(i,j,k)*v(i,j,k)**2 - 3*(1 + 3*u(i,j,k))*w(i,j,k)**2))/27.
                             fneq1=(3*(2*pxx(i,j,k) - pzz(i,j,k) - 3*pzz(i,j,k)*u(i,j,k) - pyy(i,j,k)*(1 + 3*u(i,j,k)) - 6*pxy(i,j,k)*v(i,j,k) - 6*pxz(i,j,k)*w(i,j,k)))/2.
-                            fpc=feq + (1-omega)*fneq1*p1 + fx*p1dcssq
-                            f(i+1,j,k,1)=fpc*rhoA(i,j,k)/rtot 
-                            g(i+1,j,k,1)=fpc*rhoB(i,j,k)/rtot 
+                            f(i+1,j,k,1)=feq + (1-omega)*fneq1*p1 + fx*p1dcssq
+                            
                             !2
-                            feq=(rtot*(2 - 3*v(i,j,k)**2 - 3*w(i,j,k)**2 + 3*u(i,j,k)*(-2 + 2*u(i,j,k) + 3*v(i,j,k)**2 + 3*w(i,j,k)**2)))/27.
+                            feq=(rho(i,j,k)*(2 - 3*v(i,j,k)**2 - 3*w(i,j,k)**2 + 3*u(i,j,k)*(-2 + 2*u(i,j,k) + 3*v(i,j,k)**2 + 3*w(i,j,k)**2)))/27.
                             fneq1=(3*(2*pxx(i,j,k) - pzz(i,j,k) + 3*pzz(i,j,k)*u(i,j,k) + pyy(i,j,k)*(-1 + 3*u(i,j,k)) + 6*pxy(i,j,k)*v(i,j,k) + 6*pxz(i,j,k)*w(i,j,k)))/2.
-                            fpc=feq + (1-omega)*fneq1*p1  - fx*p1dcssq
-                            f(i-1,j,k,2)=fpc*rhoA(i,j,k)/rtot
-                            g(i-1,j,k,2)=fpc*rhoB(i,j,k)/rtot
+                            f(i-1,j,k,2)=feq + (1-omega)*fneq1*p1 - fx*p1dcssq
+                            
                             !3
-                            feq=(rtot*(2 - 3*u(i,j,k)**2*(1 + 3*v(i,j,k)) - 3*w(i,j,k)**2 + 3*v(i,j,k)*(2 + 2*v(i,j,k) - 3*w(i,j,k)**2)))/27.
+                            
+                            feq=(rho(i,j,k)*(2 - 3*u(i,j,k)**2*(1 + 3*v(i,j,k)) - 3*w(i,j,k)**2 + 3*v(i,j,k)*(2 + 2*v(i,j,k) - 3*w(i,j,k)**2)))/27.
                             fneq1=(-3*(pxx(i,j,k) - 2*pyy(i,j,k) + pzz(i,j,k) + 6*pxy(i,j,k)*u(i,j,k) + 3*pxx(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*w(i,j,k)))/2.
-                            fpc=feq + (1-omega)*fneq1*p1 + fy*p1dcssq
-                            f(i,j+1,k,3)=fpc*rhoA(i,j,k)/rtot
-                            g(i,j+1,k,3)=fpc*rhoB(i,j,k)/rtot
+                            f(i,j+1,k,3)=feq+ (1-omega)*fneq1*p1 + fy*p1dcssq
+                            
                             !4
-                            feq=(rtot*(2 + u(i,j,k)**2*(-3 + 9*v(i,j,k)) - 3*w(i,j,k)**2 + 3*v(i,j,k)*(-2 + 2*v(i,j,k) + 3*w(i,j,k)**2)))/27.
+                            feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(-3 + 9*v(i,j,k)) - 3*w(i,j,k)**2 + 3*v(i,j,k)*(-2 + 2*v(i,j,k) + 3*w(i,j,k)**2)))/27.
                             fneq1=(3*(2*pyy(i,j,k) - pzz(i,j,k) + 6*pxy(i,j,k)*u(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + pxx(i,j,k)*(-1 + 3*v(i,j,k)) + 6*pyz(i,j,k)*w(i,j,k)))/2.
-                            fpc=feq+ (1-omega)*fneq1*p1 - fy*p1dcssq
-                            f(i,j-1,k,4)=fpc*rhoA(i,j,k)/rtot 
-                            g(i,j-1,k,4)=fpc*rhoB(i,j,k)/rtot 
+                            f(i,j-1,k,4)=feq+ (1-omega)*fneq1*p1 - fy*p1dcssq
+                            
                             !7
-                            feq=(2*rtot*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) + u(i,j,k)*(3 + 9*v(i,j,k)*(1 + v(i,j,k)))) - 3*rtot*(1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                            
+                            feq=(2*rho(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) + u(i,j,k)*(3 + 9*v(i,j,k)*(1 + v(i,j,k)))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
                             fneq1=(3*(2*pyy(i,j,k) - pzz(i,j,k) + 6*pyy(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + 6*pxy(i,j,k)*(1 + 2*u(i,j,k) + 2*v(i,j,k)) + pxx(i,j,k)*(2 + 6*v(i,j,k)) - 6*pxz(i,j,k)*w(i,j,k) - 6*pyz(i,j,k)*w(i,j,k)))/2.
-                            fpc=feq + (1-omega)*fneq1*p2 + (fx+fy)*p2dcssq 
-                            f(i+1,j+1,k,7)=fpc*rhoA(i,j,k)/rtot 
-                            g(i+1,j+1,k,7)=fpc*rhoB(i,j,k)/rtot 
+                            f(i+1,j+1,k,7)=feq + (1-omega)*fneq1*p2 + (fx+fy)*p2dcssq 
+                            
                             !8
-                            feq=(2*rtot*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(-3 - 9*(-1 + v(i,j,k))*v(i,j,k))) + 3*rtot*(-1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
+                            feq=(2*rho(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(-3 - 9*(-1 + v(i,j,k))*v(i,j,k))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)/108.
                             fneq1=(-3*(-2*pyy(i,j,k) + pzz(i,j,k) + 6*pyy(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + 6*pxy(i,j,k)*(-1 + 2*u(i,j,k) + 2*v(i,j,k)) + pxx(i,j,k)*(-2 + 6*v(i,j,k)) - 6*pxz(i,j,k)*w(i,j,k) - 6*pyz(i,j,k)*w(i,j,k)))/2.
-                            fpc=feq + (1-omega)*fneq1*p2 - (fx+fy)*p2dcssq
-                            f(i-1,j-1,k,8)=fpc*rhoA(i,j,k)/rtot 
-                            g(i-1,j-1,k,8)=fpc*rhoB(i,j,k)/rtot 
+                            f(i-1,j-1,k,8)=feq + (1-omega)*fneq1*p2 - (fx+fy)*p2dcssq
+                            
                             !10
-                            feq=(2*rtot*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)))) + 3*rtot*(-1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                            
+                            feq=(2*rho(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)*(1 + v(i,j,k)))) + 3*rho(i,j,k)*(-1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
                             fneq1=(3*(2*pyy(i,j,k) - pzz(i,j,k) - 6*pyy(i,j,k)*u(i,j,k) + 3*pzz(i,j,k)*u(i,j,k) + 6*pxy(i,j,k)*(-1 + 2*u(i,j,k) - 2*v(i,j,k)) - 3*pzz(i,j,k)*v(i,j,k) + pxx(i,j,k)*(2 + 6*v(i,j,k)) + 6*pxz(i,j,k)*w(i,j,k) - 6*pyz(i,j,k)*w(i,j,k)))/2.
-                            fpc=feq+ (1-omega)*fneq1*p2 + (fy-fx)*p2dcssq
-                            f(i-1,j+1,k,10)=fpc*rhoA(i,j,k)/rtot 
-                            g(i-1,j+1,k,10)=fpc*rhoB(i,j,k)/rtot 
+                            f(i-1,j+1,k,10)=feq+ (1-omega)*fneq1*p2 +(fy-fx)*p2dcssq
+                            
                             !9
-                            feq=(2*rtot*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(3 + 9*(-1 + v(i,j,k))*v(i,j,k))) - 3*rtot*(1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
+                            feq=(2*rho(i,j,k)*(1 + u(i,j,k)**2*(3 - 9*v(i,j,k)) + 3*(-1 + v(i,j,k))*v(i,j,k) + u(i,j,k)*(3 + 9*(-1 + v(i,j,k))*v(i,j,k))) - 3*rho(i,j,k)*(1 + 3*u(i,j,k) - 3*v(i,j,k))*w(i,j,k)**2)/108.
                             fneq1=(-3*(-2*pyy(i,j,k) + pzz(i,j,k) - 6*pyy(i,j,k)*u(i,j,k) + 3*pzz(i,j,k)*u(i,j,k) + 6*pxy(i,j,k)*(1 + 2*u(i,j,k) - 2*v(i,j,k)) - 3*pzz(i,j,k)*v(i,j,k) + pxx(i,j,k)*(-2 + 6*v(i,j,k)) + 6*pxz(i,j,k)*w(i,j,k) - 6*pyz(i,j,k)*w(i,j,k)))/2.
-                            fpc=feq+ (1-omega)*fneq1*p2 + (fx-fy)*p2dcssq
-                            f(i+1,j-1,k,9)=fpc*rhoA(i,j,k)/rtot 
-                            g(i+1,j-1,k,9)=fpc*rhoB(i,j,k)/rtot 
+                            f(i+1,j-1,k,9)=feq+ (1-omega)*fneq1*p2 + (fx-fy)*p2dcssq
 
                             !5
-                            feq=(rtot*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) - 3*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k))))/27.
+                            
+                            feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) - 3*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k))))/27.
                             fneq1=(-3*(pxx(i,j,k) + pyy(i,j,k) - 2*pzz(i,j,k) + 6*pxz(i,j,k)*u(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + 3*pxx(i,j,k)*w(i,j,k) + 3*pyy(i,j,k)*w(i,j,k)))/2.
-                            fpc=feq+ (1-omega)*fneq1*p1 + fz*p1dcssq
-                            f(i,j,k+1,5)=fpc*rhoA(i,j,k)/rtot 
-                            g(i,j,k+1,5)=fpc*rhoB(i,j,k)/rtot 
+                            f(i,j,k+1,5)=feq+ (1-omega)*fneq1*p1 + fz*p1dcssq
                             
                             !6
-                            feq=(rtot*(2 + 6*(-1 + w(i,j,k))*w(i,j,k) + u(i,j,k)**2*(-3 + 9*w(i,j,k)) + v(i,j,k)**2*(-3 + 9*w(i,j,k))))/27.
+                            feq=(rho(i,j,k)*(2 + 6*(-1 + w(i,j,k))*w(i,j,k) + u(i,j,k)**2*(-3 + 9*w(i,j,k)) + v(i,j,k)**2*(-3 + 9*w(i,j,k))))/27.
                             fneq1=(3*(-pyy(i,j,k) + 2*pzz(i,j,k) + 6*pxz(i,j,k)*u(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + 3*pyy(i,j,k)*w(i,j,k) + pxx(i,j,k)*(-1 + 3*w(i,j,k))))/2.
-                            fpc=feq+ (1-omega)*fneq1*p1 - fz*p1dcssq
-                            f(i,j,k-1,6)=fpc*rhoA(i,j,k)/rtot 
-                            g(i,j,k-1,6)=fpc*rhoB(i,j,k)/rtot 
+                            f(i,j,k-1,6)=feq+ (1-omega)*fneq1*p1 - fz*p1dcssq
 
                             !15
-                            feq=(rtot*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k)) + 3*u(i,j,k)*(2 - 3*v(i,j,k)**2 + 6*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                            
+                            feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k)) + 3*u(i,j,k)*(2 - 3*v(i,j,k)**2 + 6*w(i,j,k)*(1 + w(i,j,k)))))/108.
                             fneq1=(3*(-pyy(i,j,k) + 2*pzz(i,j,k) - 3*pyy(i,j,k)*u(i,j,k) + 6*pzz(i,j,k)*u(i,j,k) - 6*pxy(i,j,k)*v(i,j,k) - 6*pyz(i,j,k)*v(i,j,k) - 3*pyy(i,j,k)*w(i,j,k) + 6*pxz(i,j,k)*(1 + 2*u(i,j,k) + 2*w(i,j,k)) + pxx(i,j,k)*(2 + 6*w(i,j,k))))/2.
-                            fpc=feq+ (1-omega)*fneq1*p2 + (fx+fz)*p2dcssq 
-                            f(i+1,j,k+1,15)=fpc*rhoA(i,j,k)/rtot 
-                            g(i+1,j,k+1,15)=fpc*rhoB(i,j,k)/rtot 
+                            f(i+1,j,k+1,15)=feq+ (1-omega)*fneq1*p2 + (fx+fz)*p2dcssq 
                             
                             !16
-                            feq=(rtot*(2 + u(i,j,k)**2*(6 - 18*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)**2*(-3 + 9*w(i,j,k)) + 3*u(i,j,k)*(-2 + 3*v(i,j,k)**2 - 6*(-1 + w(i,j,k))*w(i,j,k))))/108.
+                            feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(6 - 18*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)**2*(-3 + 9*w(i,j,k)) + 3*u(i,j,k)*(-2 + 3*v(i,j,k)**2 - 6*(-1 + w(i,j,k))*w(i,j,k))))/108.
                             fneq1=(3*(-pyy(i,j,k) + 2*pzz(i,j,k) + 3*pyy(i,j,k)*u(i,j,k) - 6*pzz(i,j,k)*u(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + pxx(i,j,k)*(2 - 6*w(i,j,k)) + 3*pyy(i,j,k)*w(i,j,k) - 6*pxz(i,j,k)*(-1 + 2*u(i,j,k) + 2*w(i,j,k))))/2.
-                            fpc=feq+ (1-omega)*fneq1*p2 - (fx+fz)*p2dcssq
-                            f(i-1,j,k-1,16)=fpc*rhoA(i,j,k)/rtot 
-                            g(i-1,j,k-1,16)=fpc*rhoB(i,j,k)/rtot 
+                            f(i-1,j,k-1,16)=feq+ (1-omega)*fneq1*p2 - (fx+fz)*p2dcssq
 
                             !17
-                            feq=(rtot*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k)) + 3*u(i,j,k)*(-2 + 3*v(i,j,k)**2 - 6*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                            
+                            feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k)) + 3*u(i,j,k)*(-2 + 3*v(i,j,k)**2 - 6*w(i,j,k)*(1 + w(i,j,k)))))/108.
                             fneq1=(3*(-pyy(i,j,k) + 2*pzz(i,j,k) + 3*pyy(i,j,k)*u(i,j,k) - 6*pzz(i,j,k)*u(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) - 6*pyz(i,j,k)*v(i,j,k) + 6*pxz(i,j,k)*(-1 + 2*u(i,j,k) - 2*w(i,j,k)) - 3*pyy(i,j,k)*w(i,j,k) + pxx(i,j,k)*(2 + 6*w(i,j,k))))/2.
-                            fpc=feq+ (1-omega)*fneq1*p2 + (fz-fx)*p2dcssq
-                            f(i-1,j,k+1,17)=fpc*rhoA(i,j,k)/rtot 
-                            g(i-1,j,k+1,17)=fpc*rhoB(i,j,k)/rtot
+                            f(i-1,j,k+1,17)=feq+ (1-omega)*fneq1*p2 + (fz-fx)*p2dcssq
                             
                             !18
-                            feq=(rtot*(2 + u(i,j,k)**2*(6 - 18*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)**2*(-3 + 9*w(i,j,k)) + 3*u(i,j,k)*(2 - 3*v(i,j,k)**2 + 6*(-1 + w(i,j,k))*w(i,j,k))))/108.
+                            feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(6 - 18*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)**2*(-3 + 9*w(i,j,k)) + 3*u(i,j,k)*(2 - 3*v(i,j,k)**2 + 6*(-1 + w(i,j,k))*w(i,j,k))))/108.
                             fneq1=(-3*(pyy(i,j,k) - 2*pzz(i,j,k) + 3*pyy(i,j,k)*u(i,j,k) - 6*pzz(i,j,k)*u(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) - 6*pyz(i,j,k)*v(i,j,k) + 6*pxz(i,j,k)*(1 + 2*u(i,j,k) - 2*w(i,j,k)) - 3*pyy(i,j,k)*w(i,j,k) + pxx(i,j,k)*(-2 + 6*w(i,j,k))))/2.
-                            fpc=feq+ (1-omega)*fneq1*p2 + (fx-fz)*p2dcssq
-                            f(i+1,j,k-1,18)=fpc*rhoA(i,j,k)/rtot
-                            g(i+1,j,k-1,18)=fpc*rhoB(i,j,k)/rtot 
+                            f(i+1,j,k-1,18)=feq+ (1-omega)*fneq1*p2 + (fx-fz)*p2dcssq
 
                             !11
-                            feq=(rtot*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*v(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*u(i,j,k)**2*(1 + 3*v(i,j,k) + 3*w(i,j,k)) + 2*v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                            
+                            feq=(rho(i,j,k)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*v(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*u(i,j,k)**2*(1 + 3*v(i,j,k) + 3*w(i,j,k)) + 2*v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k)))))/108.
                             fneq1=(-3*pxx(i,j,k)*(1 + 3*v(i,j,k) + 3*w(i,j,k)))/2. + 3*(pyy(i,j,k) + pzz(i,j,k) - 3*pxy(i,j,k)*u(i,j,k) - 3*pxz(i,j,k)*u(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + 3*pyy(i,j,k)*w(i,j,k) + pyz(i,j,k)*(3 + 6*v(i,j,k) + 6*w(i,j,k)))
-                            fpc=feq+ (1-omega)*fneq1*p2 + (fy+fz)*p2dcssq
-                            f(i,j+1,k+1,11)=fpc*rhoA(i,j,k)/rtot 
-                            g(i,j+1,k+1,11)=fpc*rhoB(i,j,k)/rtot 
+                            f(i,j+1,k+1,11)=feq+ (1-omega)*fneq1*p2 + (fy+fz)*p2dcssq
                             
                             !12
-                            feq=(rtot*(2 + 2*v(i,j,k)**2*(3 - 9*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + u(i,j,k)**2*(-3 + 9*v(i,j,k) + 9*w(i,j,k)) + 2*v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k))))/108.
+                            feq=(rho(i,j,k)*(2 + 2*v(i,j,k)**2*(3 - 9*w(i,j,k)) + 6*(-1 + w(i,j,k))*w(i,j,k) + u(i,j,k)**2*(-3 + 9*v(i,j,k) + 9*w(i,j,k)) + 2*v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k))))/108.
                             fneq1=(3*pxx(i,j,k)*(-1 + 3*v(i,j,k) + 3*w(i,j,k)))/2. + 3*(pyy(i,j,k) + pzz(i,j,k) + 3*pxy(i,j,k)*u(i,j,k) + 3*pxz(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + pyz(i,j,k)*(3 - 6*v(i,j,k) - 6*w(i,j,k)) - 3*pyy(i,j,k)*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p2 - (fy+fz)*p2dcssq
-                            f(i,j-1,k-1,12)=fpc*rhoA(i,j,k)/rtot
-                            g(i,j-1,k-1,12)=fpc*rhoB(i,j,k)/rtot 
+                            f(i,j-1,k-1,12)=feq+ (1-omega)*fneq1*p2 - (fy+fz)*p2dcssq
 
                             !13
-                            feq=(rtot*(2 - 6*w(i,j,k) + u(i,j,k)**2*(-3 - 9*v(i,j,k) + 9*w(i,j,k)) + 6*(v(i,j,k) + v(i,j,k)**2*(1 - 3*w(i,j,k)) + 3*v(i,j,k)*(-1 + w(i,j,k))*w(i,j,k) + w(i,j,k)**2)))/108.
+                            
+                            feq=(rho(i,j,k)*(2 - 6*w(i,j,k) + u(i,j,k)**2*(-3 - 9*v(i,j,k) + 9*w(i,j,k)) + 6*(v(i,j,k) + v(i,j,k)**2*(1 - 3*w(i,j,k)) + 3*v(i,j,k)*(-1 + w(i,j,k))*w(i,j,k) + w(i,j,k)**2)))/108.
                             fneq1=(-3*(pxx(i,j,k) - 2*pyy(i,j,k) + 6*pyz(i,j,k) - 2*pzz(i,j,k) + 6*pxy(i,j,k)*u(i,j,k) - 6*pxz(i,j,k)*u(i,j,k) + 3*pxx(i,j,k)*v(i,j,k) + 12*pyz(i,j,k)*v(i,j,k) - 6*pzz(i,j,k)*v(i,j,k) - 3*pxx(i,j,k)*w(i,j,k) + 6*pyy(i,j,k)*w(i,j,k) - 12*pyz(i,j,k)*w(i,j,k)))/2.
-                            fpc= feq+ (1-omega)*fneq1*p2 + (fy-fz)*p2dcssq
-                            f(i,j+1,k-1,13)=fpc*rhoA(i,j,k)/rtot 
-                            g(i,j+1,k-1,13)=fpc*rhoB(i,j,k)/rtot 
+                            f(i,j+1,k-1,13)=feq+ (1-omega)*fneq1*p2 + (fy-fz)*p2dcssq
                             
                             !14
-                            feq=(rtot*(2 + u(i,j,k)**2*(-3 + 9*v(i,j,k) - 9*w(i,j,k)) + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*v(i,j,k)**2*(1 + 3*w(i,j,k)) - 6*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)))))/108.
+                            feq=(rho(i,j,k)*(2 + u(i,j,k)**2*(-3 + 9*v(i,j,k) - 9*w(i,j,k)) + 6*w(i,j,k)*(1 + w(i,j,k)) + 6*v(i,j,k)**2*(1 + 3*w(i,j,k)) - 6*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)))))/108.
                             fneq1=(3*pxx(i,j,k)*(-1 + 3*v(i,j,k) - 3*w(i,j,k)))/2. + 3*(pyy(i,j,k) + pzz(i,j,k) + 3*pxy(i,j,k)*u(i,j,k) - 3*pxz(i,j,k)*u(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + pyz(i,j,k)*(-3 + 6*v(i,j,k) - 6*w(i,j,k)) + 3*pyy(i,j,k)*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p2 + (fz-fy)*p2dcssq
-                            f(i,j-1,k+1,14)=fpc*rhoA(i,j,k)/rtot 
-                            g(i,j-1,k+1,14)=fpc*rhoB(i,j,k)/rtot 
+                            f(i,j-1,k+1,14)=feq+ (1-omega)*fneq1*p2 + (fz-fy)*p2dcssq
 
                             !19
-                            feq=(rtot*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) + 9*w(i,j,k)) + v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k))) + 3*u(i,j,k)*(1 + 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 + 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
+                            feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) + 9*w(i,j,k)) + v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k))) + 3*u(i,j,k)*(1 + 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 + 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
                             fneq1=3*(pxx(i,j,k) + (pyy(i,j,k) + 3*pyz(i,j,k) + pzz(i,j,k))*(1 + 3*u(i,j,k)) + pxy(i,j,k)*(3 + 6*u(i,j,k)) + pxz(i,j,k)*(3 + 6*u(i,j,k)) + 3*pxx(i,j,k)*v(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) + 9*pxz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + 3*(pxx(i,j,k) + 3*pxy(i,j,k) + 2*pxz(i,j,k) + pyy(i,j,k) + 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq + (1-omega)*fneq1*p3  + (fz+fy+fx)*p3dcssq
-                            f(i+1,j+1,k+1,19)=fpc*rhoA(i,j,k)/rtot 
-                            g(i+1,j+1,k+1,19)=fpc*rhoB(i,j,k)/rtot 
+                            f(i+1,j+1,k+1,19)=feq + (1-omega)*fneq1*p3 + (fz+fy+fx)*p3dcssq
                             
                             !20
-                            feq=(rtot*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 + 9*w(i,j,k)))))/216.
+                            feq=(rho(i,j,k)*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k)) - 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 + 9*w(i,j,k)))))/216.
                             fneq1=-3*((pyy(i,j,k) + 3*pyz(i,j,k) + pzz(i,j,k))*(-1 + 3*u(i,j,k)) + pxy(i,j,k)*(-3 + 6*u(i,j,k)) + pxz(i,j,k)*(-3 + 6*u(i,j,k)) + 3*(2*pxy(i,j,k) + 3*pxz(i,j,k) + 2*pyz(i,j,k) + pzz(i,j,k))*v(i,j,k) + 3*(3*pxy(i,j,k) + 2*pxz(i,j,k) + pyy(i,j,k) + 2*pyz(i,j,k))*w(i,j,k) + pxx(i,j,k)*(-1 + 3*v(i,j,k) + 3*w(i,j,k)))
-                            fpc=feq+ (1-omega)*fneq1*p3  - (fz+fy+fx)*p3dcssq
-                            f(i-1,j-1,k-1,20)=fpc*rhoA(i,j,k)/rtot 
-                            g(i-1,j-1,k-1,20)=fpc*rhoB(i,j,k)/rtot 
+                            f(i-1,j-1,k-1,20)=feq+ (1-omega)*fneq1*p3 - (fz+fy+fx)*p3dcssq
 
                             !21
-                            feq=(rtot*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) + 9*w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k))) + 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*w(i,j,k)*(1 + w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)))))/216.
+                            feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) + 9*w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k))) + 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*w(i,j,k)*(1 + w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)))))/216.
                             fneq1=3*(pxx(i,j,k) - 3*pxy(i,j,k)*(1 + 2*u(i,j,k)) + (pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k))*(1 + 3*u(i,j,k)) + pxz(i,j,k)*(3 + 6*u(i,j,k)) - 3*pxx(i,j,k)*v(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) - 9*pxz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + 3*(pxx(i,j,k) - 3*pxy(i,j,k) + 2*pxz(i,j,k) + pyy(i,j,k) - 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p3 + (fx-fy+fz)*p3dcssq
-                            f(i+1,j-1,k+1,21)=fpc*rhoA(i,j,k)/rtot 
-                            g(i+1,j-1,k+1,21)=fpc*rhoB(i,j,k)/rtot 
+                            f(i+1,j-1,k+1,21)=feq+ (1-omega)*fneq1*p3 + (fx-fy+fz)*p3dcssq
                             
                             !22
-                            feq=(rtot*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(3 + 9*(-1 + w(i,j,k))*w(i,j,k)) - 3*u(i,j,k)*(1 - 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 - 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
+                            feq=(rho(i,j,k)*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(3 + 9*(-1 + w(i,j,k))*w(i,j,k)) - 3*u(i,j,k)*(1 - 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 - 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
                             fneq1=3*(pxx(i,j,k) + 3*pxz(i,j,k) + pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k) - 3*(2*pxz(i,j,k) + pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k))*u(i,j,k) + pxy(i,j,k)*(-3 + 6*u(i,j,k)) + 3*pxx(i,j,k)*v(i,j,k) - 6*pxy(i,j,k)*v(i,j,k) + 9*pxz(i,j,k)*v(i,j,k) - 6*pyz(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) - 3*(pxx(i,j,k) - 3*pxy(i,j,k) + 2*pxz(i,j,k) + pyy(i,j,k) - 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p3 - (fx-fy+fz)*p3dcssq
-                            f(i-1,j+1,k-1,22)=fpc*rhoA(i,j,k)/rtot 
-                            g(i-1,j+1,k-1,22)=fpc*rhoB(i,j,k)/rtot 
+                            f(i-1,j+1,k-1,22)=feq+ (1-omega)*fneq1*p3 - (fx-fy+fz)*p3dcssq
 
                             !23
-                            feq=(rtot*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) + 9*w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k))) - 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*w(i,j,k)*(1 + w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)))))/216.
+                            feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) + 9*w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k))) - 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*w(i,j,k)*(1 + w(i,j,k)) - 3*v(i,j,k)*(1 + 3*w(i,j,k)))))/216.
                             fneq1=3*(pxx(i,j,k) + 3*pxy(i,j,k) - 3*pxz(i,j,k) + pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k) - 3*(2*pxy(i,j,k) - 2*pxz(i,j,k) + pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k))*u(i,j,k) - 3*pxx(i,j,k)*v(i,j,k) - 6*pxy(i,j,k)*v(i,j,k) + 9*pxz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) - 3*pzz(i,j,k)*v(i,j,k) + 3*(pxx(i,j,k) + 3*pxy(i,j,k) - 2*pxz(i,j,k) + pyy(i,j,k) - 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p3 + (fz-fy-fx)*p3dcssq
-                            f(i-1,j-1,k+1,23)=fpc*rhoA(i,j,k)/rtot 
-                            g(i-1,j-1,k+1,23)=fpc*rhoB(i,j,k)/rtot 
+                            f(i-1,j-1,k+1,23)=feq+ (1-omega)*fneq1*p3 + (fz-fy-fx)*p3dcssq
 
                             !24
-                            feq=(rtot*(1 + 3*v(i,j,k) - 3*w(i,j,k)+ 3*(u(i,j,k) + u(i,j,k)**2 + 3*u(i,j,k)*v(i,j,k) + 3*u(i,j,k)**2*v(i,j,k) + v(i,j,k)**2 + 3*u(i,j,k)*v(i,j,k)**2 - 3*(u(i,j,k) + u(i,j,k)**2 + v(i,j,k) + 3*u(i,j,k)*v(i,j,k) + v(i,j,k)**2)*w(i,j,k) + (1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)))/216.
+                            feq=(rho(i,j,k)*(1 + 3*v(i,j,k) - 3*w(i,j,k)+ 3*(u(i,j,k) + u(i,j,k)**2 + 3*u(i,j,k)*v(i,j,k) + 3*u(i,j,k)**2*v(i,j,k) + v(i,j,k)**2 + 3*u(i,j,k)*v(i,j,k)**2 - 3*(u(i,j,k) + u(i,j,k)**2 + v(i,j,k) + 3*u(i,j,k)*v(i,j,k) + v(i,j,k)**2)*w(i,j,k) + (1 + 3*u(i,j,k) + 3*v(i,j,k))*w(i,j,k)**2)))/216.
                             fneq1=3*(pxx(i,j,k) - 3*pxz(i,j,k)*(1 + 2*u(i,j,k)) + (pyy(i,j,k) - 3*pyz(i,j,k) + pzz(i,j,k))*(1 + 3*u(i,j,k)) + pxy(i,j,k)*(3 + 6*u(i,j,k)) + 3*pxx(i,j,k)*v(i,j,k) + 6*pxy(i,j,k)*v(i,j,k) - 9*pxz(i,j,k)*v(i,j,k) - 6*pyz(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) - 3*(pxx(i,j,k) + 3*pxy(i,j,k) - 2*pxz(i,j,k) + pyy(i,j,k) - 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq+ (1-omega)*fneq1*p3 + (-fz+fy+fx)*p3dcssq
-                            f(i+1,j+1,k-1,24)=fpc*rhoA(i,j,k)/rtot 
-                            g(i+1,j+1,k-1,24)=fpc*rhoB(i,j,k)/rtot
+                            f(i+1,j+1,k-1,24)=feq+ (1-omega)*fneq1*p3 + (-fz+fy+fx)*p3dcssq
 
                             !25
-                            feq=(rtot*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k)) + 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 + 9*w(i,j,k)))))/216.
+                            feq=(rho(i,j,k)*(1 + v(i,j,k)**2*(3 - 9*w(i,j,k)) + u(i,j,k)**2*(3 - 9*v(i,j,k) - 9*w(i,j,k)) + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 - 9*(-1 + w(i,j,k))*w(i,j,k)) + 3*u(i,j,k)*(1 + 3*v(i,j,k)**2 + 3*(-1 + w(i,j,k))*w(i,j,k) + v(i,j,k)*(-3 + 9*w(i,j,k)))))/216.
                             fneq1=-3*(-pxx(i,j,k) - (pyy(i,j,k) + 3*pyz(i,j,k) + pzz(i,j,k))*(1 + 3*u(i,j,k)) + pxy(i,j,k)*(3 + 6*u(i,j,k)) + pxz(i,j,k)*(3 + 6*u(i,j,k)) + 3*pxx(i,j,k)*v(i,j,k) - 6*pxy(i,j,k)*v(i,j,k) - 9*pxz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + 3*(pxx(i,j,k) - 3*pxy(i,j,k) - 2*pxz(i,j,k) + pyy(i,j,k) + 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq + (1-omega)*fneq1*p3 + (-fz-fy+fx)*p3dcssq
-                            f(i+1,j-1,k-1,25)=fpc*rhoA(i,j,k)/rtot
-                            g(i+1,j-1,k-1,25)=fpc*rhoB(i,j,k)/rtot 
+                            f(i+1,j-1,k-1,25)=feq + (1-omega)*fneq1*p3 + (-fz-fy+fx)*p3dcssq
 
                             !26
-                            feq=(rtot*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) + 9*w(i,j,k)) + v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k))) - 3*u(i,j,k)*(1 + 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 + 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
+                            feq=(rho(i,j,k)*(1 + 3*w(i,j,k)*(1 + w(i,j,k)) + v(i,j,k)**2*(3 + 9*w(i,j,k)) + u(i,j,k)**2*(3 + 9*v(i,j,k) + 9*w(i,j,k)) + v(i,j,k)*(3 + 9*w(i,j,k)*(1 + w(i,j,k))) - 3*u(i,j,k)*(1 + 3*w(i,j,k) + 3*(v(i,j,k) + v(i,j,k)**2 + 3*v(i,j,k)*w(i,j,k) + w(i,j,k)**2))))/216.
                             fneq1=3*(pxx(i,j,k) - (pyy(i,j,k) + 3*pyz(i,j,k) + pzz(i,j,k))*(-1 + 3*u(i,j,k)) + pxy(i,j,k)*(-3 + 6*u(i,j,k)) + pxz(i,j,k)*(-3 + 6*u(i,j,k)) + 3*pxx(i,j,k)*v(i,j,k) - 6*pxy(i,j,k)*v(i,j,k) - 9*pxz(i,j,k)*v(i,j,k) + 6*pyz(i,j,k)*v(i,j,k) + 3*pzz(i,j,k)*v(i,j,k) + 3*(pxx(i,j,k) - 3*pxy(i,j,k) - 2*pxz(i,j,k) + pyy(i,j,k) + 2*pyz(i,j,k))*w(i,j,k))
-                            fpc=feq + (1-omega)*fneq1*p3 + (fz+fy-fx)*p3dcssq
-                            f(i-1,j+1,k+1,26)=fpc*rhoA(i,j,k)/rtot 
-                            g(i-1,j+1,k+1,26)=fpc*rhoB(i,j,k)/rtot 
+                            f(i-1,j+1,k+1,26)=feq + (1-omega)*fneq1*p3 + (fz+fy-fx)*p3dcssq
                           endif
                       endif
                   enddo
               enddo
           enddo
-          !$acc end kernels
-        !***********************************boundary conditions********************************!
-        call  bcs_allbback_multicomp          
+        !***********************************boundary conditions no slip everywhere********************************!
+            !$acc loop independent 
+            do k=1,nz
+                !$acc loop independent 
+                do j=1,ny
+                    !$acc loop independent 
+                    do i=1,nx
+                        if(isfluid(i,j,k).eq.0)then
+                                ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
+                            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
+                            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
+                            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
+                            f(i+1,j-1,k-1,25)=f(i,j,k,26) !gpc 
+                            f(i-1,j+1,k+1,26)=f(i,j,k,25) !hpc
+
+                            f(i-1,j-1,k+1,23)=f(i,j,k,24) !gpc 
+                            f(i+1,j+1,k-1,24)=f(i,j,k,23) !hpc
+
+                            f(i+1,j-1,k+1,21)=f(i,j,k,22) !gpc 
+                            f(i-1,j+1,k-1,22)=f(i,j,k,21) !hpc
+
+                            f(i+1,j+1,k+1,19)=f(i,j,k,20) !gpc 
+                            f(i-1,j-1,k-1,20)=f(i,j,k,19) !hpc
+
+                            f(i+1,j,k-1,18)=f(i,j,k,17) !gpc 
+                            f(i-1,j,k+1,17)=f(i,j,k,18) !hpc
+
+                            f(i-1,j,k-1,16)=f(i,j,k,15) !gpc 
+                            f(i+1,j,k+1,15)=f(i,j,k,16) !hpc
+
+                            f(i,j-1,k+1,14)=f(i,j,k,13)!gpc 
+                            f(i,j+1,k-1,13)=f(i,j,k,14)!hpc
+                            
+                            f(i,j-1,k-1,12)=f(i,j,k,11)!gpc 
+                            f(i,j+1,k+1,11)=f(i,j,k,12)!hpc
+
+                            f(i-1,j+1,k,10)=f(i,j,k,9)!gpc 
+                            f(i+1,j-1,k,9)=f(i,j,k,10)!hpc
+
+                            f(i-1,j-1,k,8)=f(i,j,k,7)!gpc 
+                            f(i+1,j+1,k,7)=f(i,j,k,8)!hpc
+
+                            f(i,j,k-1,6)=f(i,j,k,5)!gpc 
+                            f(i,j,k+1,5)=f(i,j,k,6)!hpc 
+
+                            f(i,j-1,k,4)=f(i,j,k,3)!gpc 
+                            f(i,j+1,k,3)=f(i,j,k,4)!hpc 
+
+                            f(i-1,j,k,2)=f(i,j,k,1)!gpc 
+                            f(i+1,j,k,1)=f(i,j,k,2)!hpc 
+                        endif
+                    enddo
+                enddo
+            enddo
+         !$acc end kernels
+        
+        !*********************************** call other bcs:PERIODIC ************************
+          if(lpbc)then      
+            !periodic along x 
+            !$acc kernels 
+                ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
+
+            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
+            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
+            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
+            
+            f(2,2:ny-1,2:nz-1,1)=f(nx-1,2:ny-1,2:nz-1,1)
+            f(2,2:ny-1,2:nz-1,7)=f(nx-1,2:ny-1,2:nz-1,7)
+            f(2,2:ny-1,2:nz-1,9)=f(nx-1,2:ny-1,2:nz-1,9)
+            f(2,2:ny-1,2:nz-1,15)=f(nx-1,2:ny-1,2:nz-1,15)
+            f(2,2:ny-1,2:nz-1,18)=f(nx-1,2:ny-1,2:nz-1,18)
+            f(2,2:ny-1,2:nz-1,19)=f(nx-1,2:ny-1,2:nz-1,19)
+            f(2,2:ny-1,2:nz-1,21)=f(nx-1,2:ny-1,2:nz-1,21)
+            f(2,2:ny-1,2:nz-1,24)=f(nx-1,2:ny-1,2:nz-1,24)
+            f(2,2:ny-1,2:nz-1,25)=f(nx-1,2:ny-1,2:nz-1,25)
+            
+            f(nx-1,2:ny-1,2:nz-1,2)=f(2,2:ny-1,2:nz-1,2)
+            f(nx-1,2:ny-1,2:nz-1,8)=f(2,2:ny-1,2:nz-1,8)
+            f(nx-1,2:ny-1,2:nz-1,10)=f(2,2:ny-1,2:nz-1,10)
+            f(nx-1,2:ny-1,2:nz-1,16)=f(2,2:ny-1,2:nz-1,16)
+            f(nx-1,2:ny-1,2:nz-1,17)=f(2,2:ny-1,2:nz-1,17)
+            f(nx-1,2:ny-1,2:nz-1,20)=f(2,2:ny-1,2:nz-1,20)
+            f(nx-1,2:ny-1,2:nz-1,22)=f(2,2:ny-1,2:nz-1,22)
+            f(nx-1,2:ny-1,2:nz-1,23)=f(2,2:ny-1,2:nz-1,23)
+            f(nx-1,2:ny-1,2:nz-1,26)=f(2,2:ny-1,2:nz-1,26)
+            !$acc end kernels
+            
+            !periodic along y
+            !$acc kernels 
+                ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
+                
+            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
+            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
+            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
+            
+            f(2:nx-1,2,2:nz-1,3)=f(2:nx-1,ny-1,2:nz-1,3)
+            f(2:nx-1,2,2:nz-1,7)=f(2:nx-1,ny-1,2:nz-1,7)
+            f(2:nx-1,2,2:nz-1,10)=f(2:nx-1,ny-1,2:nz-1,10)
+            f(2:nx-1,2,2:nz-1,11)=f(2:nx-1,ny-1,2:nz-1,11)
+            f(2:nx-1,2,2:nz-1,13)=f(2:nx-1,ny-1,2:nz-1,13)
+            f(2:nx-1,2,2:nz-1,19)=f(2:nx-1,ny-1,2:nz-1,19)
+            f(2:nx-1,2,2:nz-1,22)=f(2:nx-1,ny-1,2:nz-1,22)
+            f(2:nx-1,2,2:nz-1,24)=f(2:nx-1,ny-1,2:nz-1,24)
+            f(2:nx-1,2,2:nz-1,26)=f(2:nx-1,ny-1,2:nz-1,26)
+      
+            f(2:nx-1,ny-1,2:nz-1,4)=f(2:nx-1,2,2:nz-1,4)
+            f(2:nx-1,ny-1,2:nz-1,8)=f(2:nx-1,2,2:nz-1,8)
+            f(2:nx-1,ny-1,2:nz-1,9)=f(2:nx-1,2,2:nz-1,9)
+            f(2:nx-1,ny-1,2:nz-1,12)=f(2:nx-1,2,2:nz-1,12)
+            f(2:nx-1,ny-1,2:nz-1,14)=f(2:nx-1,2,2:nz-1,14)
+            f(2:nx-1,ny-1,2:nz-1,20)=f(2:nx-1,2,2:nz-1,20)
+            f(2:nx-1,ny-1,2:nz-1,21)=f(2:nx-1,2,2:nz-1,21)
+            f(2:nx-1,ny-1,2:nz-1,23)=f(2:nx-1,2,2:nz-1,23)
+            f(2:nx-1,ny-1,2:nz-1,25)=f(2:nx-1,2,2:nz-1,25)
+			      !$acc end kernels
+          endif        
     enddo 
     !$acc end data
     call cpu_time(ts2)

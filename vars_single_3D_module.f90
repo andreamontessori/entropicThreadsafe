@@ -17,8 +17,8 @@ module vars
     real(kind=db) :: fneq1,feq
     
     integer(kind=4), allocatable,dimension(:,:,:)   :: isfluid
-    real(kind=db), allocatable, dimension(:,:,:) :: rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz
-    real(kind=db), allocatable, dimension(:,:,:,:) :: f
+    real(kind=db), allocatable, dimension(:,:,:) :: rho,rhoA,rhoB,psi,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz
+    real(kind=db), allocatable, dimension(:,:,:,:) :: f,g
     real(kind=db) :: mymemory,totmemory
 	real(kind=db) :: uwall
 	real(kind=4) :: rrx,rry,rrz

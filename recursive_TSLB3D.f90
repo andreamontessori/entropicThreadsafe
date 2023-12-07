@@ -41,7 +41,7 @@ program recursiveTSLB3D
         fx=0.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
-		uwall=0.05
+		    uwall=0.05
         lprint=.true.
         lvtk=.true.
         lasync=.false.
@@ -82,15 +82,15 @@ program recursiveTSLB3D
         u=0.0_db
         v=0.0_db
         w=0.0_db
-		do i=1,nx
-			do j=1,ny
-				if((float(i)-nx/2.0)**2 + (float(j)-ny/2.0)**2<=10**2)then
-					call random_number(rrx)
-					call random_number(rry)
-					w(i,j,1)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
-				endif
-			enddo
-		enddo
+        do i=1,nx
+          do j=1,ny
+            if((float(i)-nx/2.0)**2 + (float(j)-ny/2.0)**2<=10**2)then
+              call random_number(rrx)
+              call random_number(rry)
+              w(i,j,1)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
+            endif
+          enddo
+        enddo
         rho=1.0_db  !tot dens
         !do ll=0,nlinks
         if(dumpYN.eq.0)then
