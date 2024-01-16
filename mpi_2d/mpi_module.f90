@@ -44,6 +44,7 @@
       character*17 file_name3
       character*15 file_name5
       integer,dimension(mpid) :: temp_coord
+      logical :: lcheck=.false.
 !
       real(db):: knorm
 !
@@ -58,6 +59,37 @@
       nprocs=1
       myrank=0
 #endif
+      
+      nx = lx/proc_x
+      ny = ly/proc_y
+      nz = lz/proc_z
+!
+! some check
+      lcheck=.false.
+      if((nx*proc_x).NE.lx) then
+         write(6,*) "ERROR: global and local size along x not valid!!" & 
+     &                      , lx, nx, proc_x
+         lcheck=.true.
+      endif
+!
+      if((ny*proc_y).NE.ly) then
+         write(6,*) "ERROR: global and local size along y not valid!!" &
+     &                      , ly, ny, proc_y
+         lcheck=.true.
+      endif
+!
+      if((nz*proc_z).NE.lz) then
+         write(6,*) "ERROR: global and local size along z not valid!!" &
+     &                      , lz, nz, proc_z
+         lcheck=.true.
+      endif
+      
+      if(lcheck)then
+#ifdef MPI      
+         call MPI_finalize(ierr)
+#endif
+         stop
+      endif
 !
 #ifdef OPENACC
       ndev= acc_get_num_devices(acc_device_nvidia)
@@ -190,12 +222,6 @@
 !
       file_offset = 0    !to check
 !
-#ifdef MEM_CHECK
-      if(myrank == 0) then
-         mem_stop = get_mem();
-         write(6,*) "MEM_CHECK: after sub. setup_MPI mem =", mem_stop
-      endif
-#endif
 !!
 !! prof_i
 !      file_name1 = 'prof_i.xxxxxx.dat'
@@ -220,31 +246,14 @@
 !! formats...
 !3100      format(i6.6)
 
-      nx = lx/proc_x
-      ny = ly/proc_y
-      nz = lz/proc_z
-!
-! some check
-      if((nx*proc_x).NE.lx) then
-         write(6,*) "ERROR: global and local size along x not valid!!" & 
-     &                      , lx, nx, proc_x
-         call MPI_finalize(ierr)
-         stop
-      endif
-!
-      if((ny*proc_y).NE.ly) then
-         write(6,*) "ERROR: global and local size along y not valid!!" &
-     &                      , ly, ny, proc_y
-         call MPI_finalize(ierr)
-         stop
-      endif
-!
-      if((nz*proc_z).NE.lz) then
-         write(6,*) "ERROR: global and local size along z not valid!!" &
-     &                      , lz, nz, proc_z
-         call MPI_finalize(ierr)
-         stop
-      endif
+
+#else
+
+      coords=0
+
+#endif
+
+
 !
 #ifdef MEM_CHECK
       if(myrank == 0) then
@@ -259,7 +268,7 @@
         endif
 #endif
       
-#endif
+
       
       end subroutine setup_mpi
       

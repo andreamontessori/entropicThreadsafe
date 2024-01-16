@@ -62,7 +62,7 @@ program recursiveTSLB3D
         allocate(rho(1:nx,1:ny,1:nz),u(1:nx,1:ny,1:nz),v(1:nx,1:ny,1:nz),w(1:nx,1:ny,1:nz))
         allocate(pxx(1:nx,1:ny,1:nz),pxy(1:nx,1:ny,1:nz),pxz(1:nx,1:ny,1:nz),pyy(1:nx,1:ny,1:nz))
         allocate(pyz(1:nx,1:ny,1:nz),pzz(1:nx,1:ny,1:nz))
-        allocate(isfluid(1:nx,1:ny,1:nz))
+        allocate(isfluid(0:nx+1,0:ny+1,0:nz+1))
         if(lprint)then
           allocate(rhoprint(1:nx,1:ny,1:nz))
           allocate(velprint(1:3,1:nx,1:ny,1:nz))
@@ -83,31 +83,47 @@ program recursiveTSLB3D
         omega=1.0_db/tau
     !*****************************************geometry************************
         isfluid=1
-        isfluid(1,:,:)=0 !left
-        isfluid(nx,:,:)=0 !right
-        isfluid(:,1,:)=0 !front 
-        isfluid(:,ny,:)=0 !rear
-        isfluid(:,:,1)=0 !bottom
-        isfluid(:,:,nz)=0 !top
+        do k=1,nz
+          gk=nz*coords(2)+k
+          do j=1,ny
+            gj=ny*coords(1)+j
+            do i=1,nx
+              if(i==1)isfluid(i,gj,gk)=0
+              if(i==lx)isfluid(i,gj,gk)=0
+              if(gj==1)isfluid(i,gj,gk)=0
+              if(gj==ly)isfluid(i,gj,gk)=0
+              if(gk==1)isfluid(i,gj,gk)=0
+              if(gk==lz)isfluid(i,gj,gk)=0
+            enddo
+          enddo
+        enddo
+          
     !*************************************initial conditions ************************    
         u=0.0_db
         v=0.0_db
         w=0.0_db
-        do i=1,nx
+        do k=1,nz
+          gk=nz*coords(2)+k
+          if(gk.ne.1)cycle
           do j=1,ny
-            if((float(i)-nx/2.0)**2 + (float(j)-ny/2.0)**2<=10**2)then
-              call random_number(rrx)
-              call random_number(rry)
-              w(i,j,1)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
-            endif
+            gj=ny*coords(1)+j
+            do i=1,nx
+              if((float(i)-lx/2.0)**2 + (float(gj)-ly/2.0)**2<=10**2)then
+                call random_number(rrx)
+                call random_number(rry)
+                w(i,gj,gk)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
+              endif
+            enddo
           enddo
         enddo
         rho=1.0_db  !tot dens
         !do ll=0,nlinks
         if(dumpYN.eq.0)then
             do k=1,nz
-                  do j=1,ny
-                      do i=1,nx
+              gk=nz*coords(2)+k
+                do j=1,ny
+                  gj=ny*coords(1)+j
+                    do i=1,nx
                           if(isfluid(i,j,k).eq.1)then
                               !0
                               

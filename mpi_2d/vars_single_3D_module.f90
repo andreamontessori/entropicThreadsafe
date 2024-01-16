@@ -31,6 +31,7 @@ module vars
 	
     
     integer :: i,j,k,ll
+    integer :: gi,gj,gk
     integer :: nx,ny,nz,step,stamp,stamp2D,nlinks,nsteps,ngpus
     integer :: lx,ly,lz
     integer :: istat,iframe,iframe2D
