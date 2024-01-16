@@ -8,9 +8,6 @@ module vars
     integer :: devNum
     integer(acc_device_kind) :: devType
     integer :: nprocs,myrank,lbecomm,localcomm
-    integer:: rear_task, front_task
-    integer:: left_task, right_task
-    integer:: down_task, up_task
     integer:: xyplane, xzplane, yzplane, myxrank, yzcomm
     
     integer :: mydev, ndev 
@@ -21,9 +18,17 @@ module vars
     integer, parameter::  mpid=2      ! mpi dimension
     logical :: periodic(mpid) 
     integer :: prgrid(mpid)
-    integer:: mpicoords(mpid)
-    integer:: up(2),down(2),left(2)
-    integer:: front(2),rear(2),right(2)
+    integer:: coords(mpid)
+    integer:: up(mpid),down(mpid),left(mpid)
+    integer:: front(mpid),rear(mpid),right(mpid)
+    
+    !integer :: right_dest_x,left_source_x  
+	!integer :: left_dest_x,right_source_x
+    integer :: up_dest_y,down_source_y
+	integer :: down_dest_y, up_source_y
+	integer :: front_dest_z,rear_source_z
+	integer :: rear_dest_z,front_source_z
+	
     
     integer :: i,j,k,ll
     integer :: nx,ny,nz,step,stamp,stamp2D,nlinks,nsteps,ngpus

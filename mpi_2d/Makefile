@@ -43,8 +43,8 @@ nvfortran-mpi:
 	$(MAKE) CC=mpicc \
 	FC=mpif90 \
 	CFLAGS="-O3 -I $(CURDIR) -c" \
-	FFLAGS="-acc -Mpreprocess -Minfo=all -ta=tesla -O3 -DMPI -I $(CURDIR) -c" \
-	LDFLAGS="-acc -Mpreprocess -Minfo=all -ta=tesla -O3 -DMPI -I $(CURDIR) -o" \
+	FFLAGS="-acc -Mpreprocess -Minfo=all -gpu=cc70 -O3 -DMPI -I $(CURDIR) -c" \
+	LDFLAGS="-acc -Mpreprocess -Minfo=all -gpu=cc70 -O3 -DMPI -I $(CURDIR) -o" \
 	TYPE=mpi \
 	EX=$(EXP) BINROOT=$(BINROOT) mpi
 

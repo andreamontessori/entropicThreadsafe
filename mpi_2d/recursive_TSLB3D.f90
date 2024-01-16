@@ -33,15 +33,7 @@ program recursiveTSLB3D
         proc_y=1
         proc_z=1
         
-        rreorder=.false.
         
-        periodic(1) = .true.
-        periodic(2) = .true.
-        !periodic(3) = .true.
-        
-        prgrid(1) = proc_x
-        prgrid(2) = proc_y
-        !prgrid(3) = proc_z
     !*******************************user parameters and allocations**************************
         lx=150
         ly=150

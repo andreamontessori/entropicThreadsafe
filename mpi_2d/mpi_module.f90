@@ -43,6 +43,7 @@
       character*17 file_name2
       character*17 file_name3
       character*15 file_name5
+      integer,dimension(mpid) :: temp_coord
 !
       real(db):: knorm
 !
@@ -72,6 +73,16 @@
          write(6,*) "INFO: GPUs found:", ndev
       endif
 #endif
+
+      rreorder=.false.
+        
+      periodic(1) = .true.
+      periodic(2) = .true.
+      !periodic(3) = .true.
+        
+      prgrid(1) = proc_y!proc_x
+      prgrid(2) = proc_z!proc_y
+      !prgrid(3) = proc_z
 
 #ifdef MPI
 !
@@ -103,13 +114,56 @@
 
       call MPI_comm_rank(lbecomm, myrank, ierr)
       call MPI_cart_coords(lbecomm, myrank, mpid, &
-                            mpicoords, ierr)
+                            coords, ierr)
 !
       call mpi_barrier(MPI_COMM_WORLD,ierr)
 !
-! x dir  & y dir
-      call MPI_cart_shift(lbecomm, 0, 1, rear(2), front(2), ierr)
-      call MPI_cart_shift(lbecomm, 1, 1, left(2), right(2), ierr)
+! y dir  & z dir
+
+      !pause
+      !********************************************************!
+	  !*******************neighbour processes******************!
+	  !********************************************************!
+			
+      ! pass missing infos to buffer right_send along y
+	  temp_coord(1) = coords(1) + 1 
+	  temp_coord(2) = coords(2) 
+	  call MPI_Cart_rank(lbecomm, temp_coord, up_dest_y,ierr)
+		!
+	  temp_coord(1) = coords(1) - 1
+	  temp_coord(2) = coords(2) 
+	  call MPI_Cart_rank(lbecomm, temp_coord, down_source_y,ierr)
+	  ! pass missing infos to buffer left_send along y
+	  temp_coord(1) = coords(1) - 1  
+	  temp_coord(2) = coords(2) 
+	  call MPI_Cart_rank(lbecomm, temp_coord, down_dest_y,ierr)
+      !
+	  temp_coord(1) = coords(1) + 1
+	  temp_coord(2) = coords(2) 
+	  call MPI_Cart_rank(lbecomm, temp_coord, up_source_y,ierr)
+	  
+	  ! pass missing infos to buffer front_send along z
+	  temp_coord(1) = coords(1) 
+	  temp_coord(2) = coords(2) + 1
+	  call MPI_Cart_rank(lbecomm, temp_coord, front_dest_z,ierr)
+	  !
+	  temp_coord(1) = coords(1)  
+	  temp_coord(2) = coords(2) - 1 
+	  call MPI_Cart_rank(lbecomm, temp_coord, rear_source_z,ierr)
+
+      ! pass missing infos to buffer rear_send along z
+	  temp_coord(1) = coords(1) 
+	  temp_coord(2) = coords(2) - 1
+	  call MPI_Cart_rank(lbecomm, temp_coord, rear_dest_z,ierr)
+	  !
+	  temp_coord(1) = coords(1)  
+	  temp_coord(2) = coords(2) + 1
+	  call MPI_Cart_rank(lbecomm, temp_coord, front_source_z,ierr)
+		
+      call MPI_Barrier(MPI_COMM_WORLD,ierr)
+		
+      !call MPI_cart_shift(lbecomm, 0, 1, rear(2), front(2), ierr)
+      !call MPI_cart_shift(lbecomm, 1, 1, left(2), right(2), ierr)
       !call MPI_cart_shift(lbecomm, 2, 1, down(2), up(2), ierr)
 !
 
@@ -166,11 +220,6 @@
 !! formats...
 !3100      format(i6.6)
 
-#ifdef MDEBUG_1
-      if(myrank == 0) then
-         write(6,*) "DEBUG1: Exiting from sub. setup_mpi"
-      endif
-#endif
       nx = lx/proc_x
       ny = ly/proc_y
       nz = lz/proc_z
@@ -179,18 +228,21 @@
       if((nx*proc_x).NE.lx) then
          write(6,*) "ERROR: global and local size along x not valid!!" & 
      &                      , lx, nx, proc_x
+         call MPI_finalize(ierr)
          stop
       endif
 !
       if((ny*proc_y).NE.ly) then
          write(6,*) "ERROR: global and local size along y not valid!!" &
      &                      , ly, ny, proc_y
+         call MPI_finalize(ierr)
          stop
       endif
 !
       if((nz*proc_z).NE.lz) then
          write(6,*) "ERROR: global and local size along z not valid!!" &
      &                      , lz, nz, proc_z
+         call MPI_finalize(ierr)
          stop
       endif
 !
