@@ -6,12 +6,12 @@
         
     contains
   
-    subroutine header_vtk(nx,ny,nz,mystring500,namevar,extent,ncomps,iinisub,iend,myoffset, &
+    subroutine header_vtk(nxs,nys,nzs,mystring500,namevar,extent,ncomps,iinisub,iend,myoffset, &
       new_myoffset,indent)
     
       implicit none
     
-      integer, intent(in) :: nx,ny,nz
+      integer, intent(in) :: nxs,nys,nzs
       character(len=8),intent(in) :: namevar
       character(len=120),intent(in) :: extent
       integer, intent(in) :: ncomps,iinisub,myoffset
@@ -154,12 +154,12 @@
     
     end subroutine header_vtk
   
-    subroutine footer_vtk(nx,ny,nz,mystring30,iinisub,iend,myoffset, &
+    subroutine footer_vtk(nxs,nys,nzs,mystring30,iinisub,iend,myoffset, &
       new_myoffset,indent)
   
       implicit none
       
-      integer, intent(in) :: nx,ny,nz
+      integer, intent(in) :: nxs,nys,nzs
       integer, intent(in) :: iinisub,myoffset
       integer, intent(out) :: iend,new_myoffset
       integer, intent(inout) :: indent
@@ -244,7 +244,7 @@
       
     end subroutine test_little_endian 
   
-    subroutine init_output(nx,ny,nz,ncomp,lvtk)
+    subroutine init_output(ncomp,lvtk)
   
       !***********************************************************************
       !     
@@ -260,7 +260,7 @@
     
       implicit none
       
-      integer, intent(in) :: nx,ny,nz,ncomp
+      integer, intent(in) :: ncomp
       logical, intent(in) :: lvtk
       character(len=255) :: path,makedirectory
       logical :: lexist
@@ -308,9 +308,9 @@
       makedirectory=repeat(' ',255)
       makedirectory=trim(path)//delimiter//'output'//delimiter
       
-      extentvtk =  space_fmtnumb(1) // ' ' // space_fmtnumb(nx) // ' ' &
-            // space_fmtnumb(1) // ' ' // space_fmtnumb(ny) // ' ' &
-            // space_fmtnumb(1) // ' ' // space_fmtnumb(nz)
+      extentvtk =  space_fmtnumb(1) // ' ' // space_fmtnumb(lx) // ' ' &
+            // space_fmtnumb(1) // ' ' // space_fmtnumb(ly) // ' ' &
+            // space_fmtnumb(1) // ' ' // space_fmtnumb(lz)
       
       if(ncomp==1)then
         nfilevtk=2
@@ -365,18 +365,18 @@
           end select
         enddo
       endif
-      nn=nx*ny*nz
+      nn=lx*ly*lz
       
       do i=1,nfilevtk
         myoffset=0
         indent=0
-        call header_vtk(nx,ny,nz,headervtk(i),namevarvtk(i),extentvtk,ndimvtk(i),0,iend,myoffset, &
+        call header_vtk(lx,ly,lz,headervtk(i),namevarvtk(i),extentvtk,ndimvtk(i),0,iend,myoffset, &
         new_myoffset,indent)
         vtkoffset(i)=new_myoffset
         myoffset=new_myoffset+byteint+ndimvtk(i)*nn*byter4
         ndatavtk(i)=ndimvtk(i)*nn*byter4
         nheadervtk(i)=iend
-        call footer_vtk(nx,ny,nz,footervtk(i),0,iend,myoffset, &
+        call footer_vtk(lx,ly,lz,footervtk(i),0,iend,myoffset, &
         new_myoffset,indent)
       enddo
       

@@ -50,6 +50,8 @@
 !
       knorm = 1.0/1024.0
       
+      proc_x=1
+      
 #ifdef MPI
 !
       call mpi_init(ierr)
@@ -58,6 +60,8 @@
 #else
       nprocs=1
       myrank=0
+      proc_y=1
+      proc_z=1
 #endif
       
       nx = lx/proc_x
@@ -115,6 +119,8 @@
       prgrid(1) = proc_y!proc_x
       prgrid(2) = proc_z!proc_y
       !prgrid(3) = proc_z
+      
+      
 
 #ifdef MPI
 !
@@ -252,6 +258,39 @@
       coords=0
 
 #endif
+      
+      myoffset(1) = 0
+      myoffset(2) = coords(1)*ny
+      myoffset(3) = coords(2)*nz
+      
+      lsizes(1)=nx
+      lsizes(2)=ny
+      lsizes(3)=nz
+      start_idx(1)=myoffset(1)+1
+      start_idx(2)=myoffset(2)+1
+      start_idx(3)=myoffset(3)+1
+      
+      allocate(yinidom(0:proc_y-1))
+      allocate(yfindom(0:proc_y-1))
+      yinidom(:)=0
+      yfindom(:)=-1
+      yinidom(0)=1
+      yfindom(0)=ny+yinidom(0)-1
+      do i=1,proc_y-1
+        yinidom(i)=yfindom(i-1)+1
+        yfindom(i)=yinidom(i)+ny-1
+      enddo
+      
+      allocate(zinidom(0:proc_z-1))
+      allocate(zfindom(0:proc_z-1))
+      zinidom(:)=0
+      zfindom(:)=-1
+      zinidom(0)=1
+      zfindom(0)=nz+zinidom(0)-1
+      do i=1,proc_z-1
+        zinidom(i)=zfindom(i-1)+1
+        zfindom(i)=zinidom(i)+nz-1
+      enddo
 
 
 !
@@ -271,5 +310,49 @@
 
       
       end subroutine setup_mpi
+      
+      function GET_COORD_POINT(ii,jj,kk)
+     
+      implicit none
+
+      integer, intent(in) :: ii,jj,kk
+     
+      integer :: j,k
+      integer, dimension(mpid) :: GET_COORD_POINT
+        
+        do j=0,proc_y-1
+          if(jj<=yfindom(j))then
+            GET_COORD_POINT(1)=j
+          else
+            exit
+          endif
+        enddo  
+        
+        do k=0,proc_z-1
+          if(kk<=zfindom(k))then
+            GET_COORD_POINT(2)=k
+          else
+            exit
+          endif
+        enddo   
+      
+    end function GET_COORD_POINT
+    
+    function GET_RANK_POINT(ii,jj,kk,ierr)
+    
+      implicit none
+
+      integer, intent(in) :: ii,jj,kk
+      integer, dimension(mpid) :: temp
+      integer :: ierr
+      
+      integer :: GET_RANK_POINT
+      
+      temp=GET_COORD_POINT(ii,jj,kk)
+       
+      call MPI_Cart_rank(lbecomm, temp, GET_RANK_POINT,ierr)
+      
+      
+    end function GET_RANK_POINT
       
   end module mpi_template

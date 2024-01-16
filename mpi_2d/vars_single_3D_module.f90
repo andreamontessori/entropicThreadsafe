@@ -21,6 +21,8 @@ module vars
     integer:: coords(mpid)
     integer:: up(mpid),down(mpid),left(mpid)
     integer:: front(mpid),rear(mpid),right(mpid)
+    integer, allocatable, dimension(:) :: yinidom,yfindom
+    integer, allocatable, dimension(:) :: zinidom,zfindom
     
     !integer :: right_dest_x,left_source_x  
 	!integer :: left_dest_x,right_source_x
@@ -28,6 +30,10 @@ module vars
 	integer :: down_dest_y, up_source_y
 	integer :: front_dest_z,rear_source_z
 	integer :: rear_dest_z,front_source_z
+	
+	integer :: myoffset(3),lsizes(3),start_idx(3)
+	
+	
 	
     
     integer :: i,j,k,ll

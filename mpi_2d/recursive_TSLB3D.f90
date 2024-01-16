@@ -304,14 +304,14 @@ program recursiveTSLB3D
     !$acc data copy(f,isfluid,p0,p1,p2,p3,&
              !$acc& pxx,pyy,pzz,pxy,pxz,pyz,rho,u,v,w,rhoprint,velprint)
     !$if _OPENACC        
-        call printDeviceProperties(ngpus,devNum,devType,6)
+        if(myrank==0)call printDeviceProperties(ngpus,devNum,devType,6)
     !$endif
     iframe=0
     iframe2D=0
-    write(6,'(a,i8,a,i8,3f16.4)')'start step : ',0,' frame ',iframe
+    if(myrank==0)write(6,'(a,i8,a,i8,3f16.4)')'start step : ',0,' frame ',iframe
     
     if(lprint)then  
-        call init_output(nx,ny,nz,1,lvtk)
+        call init_output(1,lvtk)
         call string_char(head1,nheadervtk(1),headervtk(1))
         call string_char(head2,nheadervtk(2),headervtk(2))
     endif
