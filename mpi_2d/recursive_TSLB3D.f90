@@ -332,9 +332,9 @@ program recursiveTSLB3D
       !$acc end kernels 
       !$acc update host(rhoprint,velprint)
       if(lvtk)then
-        call print_vtk_sync(iframe)
+        call driver_print_vtk_sync(iframe)
       else
-        call print_raw_sync(iframe)
+        call driver_print_raw_sync(iframe)
       endif
     endif
       
@@ -557,9 +557,9 @@ program recursiveTSLB3D
               !$acc end kernels 
               !$acc update host(rhoprint,velprint) 
               if(lvtk)then
-                call print_vtk_sync(iframe)
+                call driver_print_vtk_sync(iframe)
               else
-                call print_raw_sync(iframe)
+                call driver_print_raw_sync(iframe)
               endif
             endif
           endif

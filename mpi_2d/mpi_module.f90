@@ -266,9 +266,18 @@
       lsizes(1)=nx
       lsizes(2)=ny
       lsizes(3)=nz
+      
+      gsizes(1)=lx
+      gsizes(2)=ly
+      gsizes(3)=lz
+      
       start_idx(1)=myoffset(1)+1
       start_idx(2)=myoffset(2)+1
       start_idx(3)=myoffset(3)+1
+      
+      start_p(1) = myoffset(1)
+      start_p(2) = myoffset(2)
+      start_p(3) = myoffset(3)
       
       allocate(yinidom(0:proc_y-1))
       allocate(yfindom(0:proc_y-1))
@@ -310,6 +319,168 @@
 
       
       end subroutine setup_mpi
+      
+     
+      subroutine write_file_vtk_par(e_io)
+ 
+!***********************************************************************
+!     
+!     LBsoft subroutine for opening the vtk legacy file
+!     in parallel IO
+!     
+!     licensed under the 3-Clause BSD License (BSD-3-Clause)
+!     author: M. Lauricella
+!     last modification October 2019
+!     
+!***********************************************************************
+  
+       implicit none
+  
+       integer, intent(out) :: e_io
+       
+       integer(kind=MPI_OFFSET_KIND) :: tempoffset
+       integer :: nns
+       character(len=mxln) :: sheadervtk
+       
+       integer :: ioffset
+       character(1), parameter :: end_rec = char(10)
+       integer, parameter :: bytechar=kind(end_rec)
+       integer, parameter :: byteint = 4
+       integer, parameter :: byter4  = 4
+       integer, parameter :: byter8  = 8
+       integer, parameter :: nbuffsub = 0
+       integer :: filetypesub,imemtype,filetypesubv
+       
+       integer, dimension(3) :: memDims,memOffs
+       integer, dimension(4) :: velglobalDims,velldims,velmystarts, &
+        velmemDims,velmemOffs
+       
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!density!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
+       
+       sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
+        '_'//trim(write_fmtnumb(iframe)) // '.vti'
+       
+  
+       call MPI_FILE_OPEN(MPI_COMM_WORLD,trim(sevt1), &
+                       MPI_MODE_WRONLY + MPI_MODE_CREATE, &
+                       MPI_INFO_NULL,345,e_io)
+                       
+                       
+      tempoffset=int(0,kind=MPI_OFFSET_KIND)
+      
+      sheadervtk=repeat(' ',mxln)
+      sheadervtk=headervtk(1)
+      nns=nheadervtk(1)
+      
+      if(myrank==0)call MPI_File_write_at(345,tempoffset,sheadervtk(1:nns),nns, &
+       MPI_CHARACTER,MPI_STATUS_IGNORE,e_io)
+
+      ioffset=vtkoffset(1)
+      tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
+      
+      if(myrank==0)call MPI_File_write_at(345,tempoffset,int(ndatavtk(1),kind=4),1, &
+        MPI_INTEGER,MPI_STATUS_IGNORE,e_io)
+      
+      call MPI_Type_create_subarray(3,gsizes,lsizes,start_p, &
+       MPI_ORDER_FORTRAN,MPI_REAL4,filetypesub,e_io)
+        
+      call MPI_Type_commit(filetypesub, e_io)
+      
+      ioffset=vtkoffset(1)+byteint
+      tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
+   
+      call MPI_File_Set_View(345,tempoffset,MPI_REAL4,filetypesub, &
+       "native",MPI_INFO_NULL,e_io)
+      ! We need full local sizes: memDims
+      memDims = lsizes + 2*nbuffsub
+      memOffs = [ nbuffsub, nbuffsub, nbuffsub ]
+  
+
+      call MPI_TYPE_CREATE_SUBARRAY(3,memDims,lsizes,memOffs, &
+       MPI_ORDER_FORTRAN,MPI_REAL4,imemtype,e_io)
+
+      call MPI_TYPE_COMMIT(imemtype,e_io)
+
+      call MPI_FILE_WRITE_ALL(345,rhoprint,1,imemtype,MPI_STATUS_IGNORE,e_io)
+      
+      ioffset=vtkoffset(1)+byteint+ndatavtk(1)
+      tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
+      
+      if(myrank==0)call MPI_File_write_at(345,tempoffset,footervtk(1),30, &
+       MPI_CHARACTER,MPI_STATUS_IGNORE,e_io)
+      
+      call MPI_FILE_CLOSE(345, e_io)
+      
+      
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
+       '_'//trim(write_fmtnumb(iframe)) // '.vti'
+      
+      call MPI_FILE_OPEN(MPI_COMM_WORLD,trim(sevt2), &
+                       MPI_MODE_WRONLY + MPI_MODE_CREATE, &
+                       MPI_INFO_NULL,346,e_io)
+                       
+                       
+      tempoffset=int(0,kind=MPI_OFFSET_KIND)
+      
+      sheadervtk=repeat(' ',mxln)
+      sheadervtk=headervtk(2)
+      nns=nheadervtk(2)
+      
+      if(myrank==0)call MPI_File_write_at(346,tempoffset,sheadervtk(1:nns),nns, &
+       MPI_CHARACTER,MPI_STATUS_IGNORE,e_io)
+      
+      velglobalDims(1)=3
+      velglobalDims(2:4)=gsizes(1:3)
+      velldims(1)=3
+      velldims(2:4)=lsizes(1:3)
+      velmystarts(1) = 0
+      velmystarts(2:4) = start_p(1:3)
+      
+      ioffset=vtkoffset(2)
+      tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
+      
+      if(myrank==0)call MPI_File_write_at(346,tempoffset,int(ndatavtk(2),kind=4),1, &
+        MPI_INTEGER,MPI_STATUS_IGNORE,e_io)
+ 
+  
+      call MPI_Type_create_subarray(4,velglobalDims,velldims,velmystarts, &
+       MPI_ORDER_FORTRAN,MPI_REAL4,filetypesubv,e_io)
+        
+      call MPI_Type_commit(filetypesubv, e_io)
+  
+      ioffset=vtkoffset(2)+byteint
+      tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
+   
+      call MPI_File_Set_View(346,tempoffset,MPI_REAL4,filetypesubv, &
+        "native",MPI_INFO_NULL,e_io)
+      ! We need full local sizes: memDims
+      velmemDims(1) = vellDims(1)
+      velmemDims(2:4) = vellDims(2:4) + 2*nbuffsub
+      velmemOffs = [ 0, nbuffsub, nbuffsub, nbuffsub ]
+
+      call MPI_TYPE_CREATE_SUBARRAY(4,velmemDims,velldims,velmemOffs, &
+       MPI_ORDER_FORTRAN,MPI_REAL4,imemtype,e_io)
+
+      call MPI_TYPE_COMMIT(imemtype,e_io)
+
+      call MPI_FILE_WRITE_ALL(346,velprint,1,imemtype,MPI_STATUS_IGNORE,e_io)
+  
+      ioffset=vtkoffset(2)+byteint+ndatavtk(2)
+      tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
+      
+      if(myrank==0)call MPI_File_write_at(346,tempoffset,footervtk(2),30, &
+       MPI_CHARACTER,MPI_STATUS_IGNORE,e_io)
+      
+      call MPI_FILE_CLOSE(346, e_io)
+      
+                       
+      return
+  
+      end subroutine write_file_vtk_par
+      
+      
       
       function GET_COORD_POINT(ii,jj,kk)
      

@@ -1,6 +1,7 @@
  module prints
     
     use vars
+    use mpi_template
     
     implicit none
         
@@ -384,164 +385,7 @@
 
     end subroutine init_output
   
-    subroutine string_char(mychar,nstring,mystring)
     
-      implicit none
-      
-      integer :: i
-      character(1), allocatable, dimension(:) :: mychar
-      integer, intent(in) :: nstring
-      character(len=*), intent(in) :: mystring
-      
-      allocate(mychar(nstring))
-      
-      do i=1,nstring
-        mychar(i)=mystring(i:i)
-      enddo
-      
-    end subroutine string_char
-  
-    function space_fmtnumb(inum)
-
-      !***********************************************************************
-      !     
-      !     LBsoft function for returning the string of six characters 
-      !     with integer digits and leading spaces to the left
-      !     originally written in JETSPIN by M. Lauricella et al.
-      !     
-      !     licensed under Open Software License v. 3.0 (OSL-3.0)
-      !     author: M. Lauricella
-      !     last modification October 2019
-      !     
-      !***********************************************************************
-
-      implicit none
-
-      integer,intent(in) :: inum
-      character(len=6) :: space_fmtnumb
-      integer :: numdigit,irest
-      real(kind=8) :: tmp
-      character(len=22) :: cnumberlabel
-
-      numdigit=dimenumb(inum)
-      irest=6-numdigit
-      if(irest>0)then
-        write(cnumberlabel,"(a,i8,a,i8,a)")"(a",irest,",i",numdigit,")"
-        write(space_fmtnumb,fmt=cnumberlabel)repeat(' ',irest),inum
-      else
-        write(cnumberlabel,"(a,i8,a)")"(i",numdigit,")"
-        write(space_fmtnumb,fmt=cnumberlabel)inum
-      endif
-      
-      return
-
-    end function space_fmtnumb
- 
-    function space_fmtnumb12(inum)
-  
-      !***********************************************************************
-      !     
-      !     LBsoft function for returning the string of six characters 
-      !     with integer digits and leading TWELVE spaces to the left
-      !     originally written in JETSPIN by M. Lauricella et al.
-      !     
-      !     licensed under Open Software License v. 3.0 (OSL-3.0)
-      !     author: M. Lauricella
-      !     last modification October 2019
-      !     
-      !***********************************************************************
-  
-        implicit none
-
-        integer,intent(in) :: inum
-        character(len=12) :: space_fmtnumb12
-        integer :: numdigit,irest
-        real(kind=8) :: tmp
-        character(len=22) :: cnumberlabel
-
-        numdigit=dimenumb(inum)
-        irest=12-numdigit
-        if(irest>0)then
-          write(cnumberlabel,"(a,i8,a,i8,a)")"(a",irest,",i",numdigit,")"
-          write(space_fmtnumb12,fmt=cnumberlabel)repeat(' ',irest),inum
-        else
-          write(cnumberlabel,"(a,i8,a)")"(i",numdigit,")"
-          write(space_fmtnumb12,fmt=cnumberlabel)inum
-        endif
-        
-        return
-
-    end function space_fmtnumb12
-  
-    function dimenumb(inum)
-  
-        !***********************************************************************
-        !    
-        !     LBsoft function for returning the number of digits
-        !     of an integer number
-        !     originally written in JETSPIN by M. Lauricella et al.
-        !    
-        !     licensed under the 3-Clause BSD License (BSD-3-Clause)
-        !     author: M. Lauricella
-        !     last modification July 2018
-        !    
-        !***********************************************************************
-
-        implicit none
-
-        integer,intent(in) :: inum
-        integer :: dimenumb
-        integer :: i
-        real(kind=db) :: tmp
-
-        i=1
-        tmp=real(inum,kind=db)
-        do
-        if(tmp< 10.0_db )exit
-          i=i+1
-          tmp=tmp/ 10.0_db
-        enddo
-
-        dimenumb=i
-
-        return
-
-    end function dimenumb
-
-    function write_fmtnumb(inum)
-  
-          !***********************************************************************
-          !    
-          !     LBsoft function for returning the string of six characters
-          !     with integer digits and leading zeros to the left
-          !     originally written in JETSPIN by M. Lauricella et al.
-          !    
-          !     licensed under the 3-Clause BSD License (BSD-3-Clause)
-          !     author: M. Lauricella
-          !     last modification July 2018
-          !    
-          !***********************************************************************
-      
-          implicit none
-
-          integer,intent(in) :: inum
-          character(len=6) :: write_fmtnumb
-          integer :: numdigit,irest
-          !real*8 :: tmp
-          character(len=22) :: cnumberlabel
-          
-          numdigit=dimenumb(inum)
-          irest=6-numdigit
-          if(irest>0)then
-              write(cnumberlabel,"(a,i8,a,i8,a)")"(a",irest,",i",numdigit,")"
-              write(write_fmtnumb,fmt=cnumberlabel)repeat('0',irest),inum
-          else
-              write(cnumberlabel,"(a,i8,a)")"(i",numdigit,")"
-              write(write_fmtnumb,fmt=cnumberlabel)inum
-          endif
-      
-          return
-    end function write_fmtnumb   
     
     subroutine get_memory_gpu(fout,fout2)
 
@@ -554,35 +398,35 @@
       !     last modification July 2018
       !     
       !***********************************************************************  
-      #ifdef _OPENACC
+#ifdef _OPENACC
         use openacc
         use accel_lib
-      #elif defined _CUDA  
+#elif defined _CUDA  
         use cudafor
-      #endif
+#endif
         
         implicit none
         
         real(kind=db), intent(out) :: fout,fout2
         real(kind=db) :: myd(2),myd2(2)
         integer :: istat
-      #ifdef _OPENACC  
+#ifdef _OPENACC  
         integer :: myfree, total
-      #elif defined _CUDA  
+#elif defined _CUDA  
         integer(kind=cuda_count_kind) :: myfree, total
-      #else
+#else
         integer :: myfree, total
-      #endif  
+#endif  
         
-      #ifdef _OPENACC
+#ifdef _OPENACC
         myfree=acc_get_free_memory()
         total=acc_get_memory() 
-      #elif defined _CUDA
+#elif defined _CUDA
         istat = cudaMemGetInfo( myfree, total )
-      #else
+#else
         myfree=0
         total=0
-      #endif  
+#endif  
         fout = real(total-myfree,kind=4)/(1024.0**3.0)
         fout2 = real(total,kind=4)/(1024.0**3.0)
         
@@ -676,6 +520,22 @@
     
     end subroutine printDeviceProperties
   !$endif  
+  
+  subroutine driver_print_raw_sync(iframe)
+   
+   implicit none
+   
+   integer, intent(in) :: iframe
+   
+   if(nprocs==1)then
+     call print_raw_sync(iframe)
+   else
+     call print_parraw_sync(iframe)
+   endif
+   
+  end subroutine driver_print_raw_sync
+  
+  
   subroutine print_raw_sync(iframe)
   
    implicit none
@@ -696,6 +556,27 @@
    close(346)
    
   end subroutine print_raw_sync
+  
+  subroutine print_parraw_sync(iframe)
+  
+   implicit none
+   
+   integer, intent(in) :: iframe
+  
+   sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.raw'
+   sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(2))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.raw'
+   open(unit=345,file=trim(sevt1), &
+    status='replace',action='write',access='stream',form='unformatted')
+   write(345)rhoprint
+   close(345)
+   open(unit=346,file=trim(sevt2), &
+    status='replace',action='write',access='stream',form='unformatted')
+   write(346)velprint
+   close(346)
+   
+  end subroutine print_parraw_sync
 
   subroutine dump_distros_1c_3d
   
@@ -935,6 +816,20 @@
    
   end subroutine print_raw_slice_2c_sync
   
+  subroutine driver_print_vtk_sync(iframe)
+   
+   implicit none
+   
+   integer, intent(in) :: iframe
+   
+   if(nprocs==1)then
+     call print_vtk_sync(iframe)
+   else
+     call print_parvtk_sync(iframe)
+   endif
+   
+  end subroutine driver_print_vtk_sync
+  
   subroutine print_vtk_sync(iframe)
    implicit none
    
@@ -954,6 +849,28 @@
    close(346)
    
   end subroutine print_vtk_sync
+  
+  subroutine print_parvtk_sync(iframe)
+   implicit none
+   
+   integer, intent(in) :: iframe
+   
+   integer :: e_io
+   
+   
+    
+   call write_file_vtk_par(e_io)
+    
+   open(unit=345,file=trim(sevt1), &
+    status='replace',action='write',access='stream',form='unformatted')
+   write(345)head1,ndatavtk(1),rhoprint,footervtk(1)
+   close(345)
+   open(unit=346,file=trim(sevt2), &
+    status='replace',action='write',access='stream',form='unformatted')
+   write(346)head2,ndatavtk(2),velprint,footervtk(2)
+   close(346)
+   
+  end subroutine print_parvtk_sync
   
   subroutine print_raw_async(iframe)
   
