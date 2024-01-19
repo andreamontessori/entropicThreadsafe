@@ -8,7 +8,7 @@ program recursiveTSLB3D
     implicit none
     
     logical :: dumpYN
-    integer :: dumpstep
+    integer :: dumpstep,inumchar,narg
     !$if _OPENACC
     
     devType = acc_get_device_type()
@@ -32,12 +32,39 @@ program recursiveTSLB3D
         proc_x=1
         proc_y=1
         proc_z=1
-        
-        
+#ifdef MPI
+        narg = command_argument_count()
+        if (narg /= 3) then
+          write(6,*) 'error!'
+          write(6,*) 'the command line should be'
+          write(6,*) '[executable] [proc_x] [proc_y] [proc_z]'
+          write(6,*) 'proc_x  = num MPI processes along x'
+          write(6,*) 'proc_y  = num MPI processes along y'
+          write(6,*) 'proc_z  = num MPI processes along z'
+          write(6,*) 'STOP!'
+          stop
+        endif
+  
+        do i = 1, narg
+          call getarg(i, arg)
+          if(i==1)then
+            call copystring(arg,directive,mxln)
+             proc_x=intstr(directive,mxln,inumchar)
+          elseif(i==2)then
+            call copystring(arg,directive,mxln)
+             proc_y=intstr(directive,mxln,inumchar)
+          elseif(i==3)then
+            call copystring(arg,directive,mxln)
+             proc_z=intstr(directive,mxln,inumchar)
+          endif
+        enddo
+
+        write(6,*)'MPI processes= ',proc_x,proc_y,proc_z   
+#endif        
     !*******************************user parameters and allocations**************************
-        lx=150
-        ly=150
-        lz=600
+        lx=16
+        ly=16
+        lz=16
         nsteps=1000000
         stamp=2000000
         stamp2D=1000
@@ -56,6 +83,7 @@ program recursiveTSLB3D
       
         call setup_mpi()         
         
+      
         !!!!!!!END MPI!!!!!!!!!!!!!!!!!!!
         
         allocate(f(0:nx+1,0:ny+1,0:nz+1,0:nlinks))
@@ -81,6 +109,7 @@ program recursiveTSLB3D
         p2dcssq=p2/cssq
         p3dcssq=p3/cssq
         omega=1.0_db/tau
+        
     !*****************************************geometry************************
         isfluid=1
         do k=1,nz
@@ -88,35 +117,42 @@ program recursiveTSLB3D
           do j=1,ny
             gj=ny*coords(1)+j
             do i=1,nx
-              if(i==1)isfluid(i,gj,gk)=0
-              if(i==lx)isfluid(i,gj,gk)=0
-              if(gj==1)isfluid(i,gj,gk)=0
-              if(gj==ly)isfluid(i,gj,gk)=0
-              if(gk==1)isfluid(i,gj,gk)=0
-              if(gk==lz)isfluid(i,gj,gk)=0
+              gi=i
+              if(gi==1)isfluid(i,j,k)=0
+              if(gi==lx)isfluid(i,j,k)=0
+              if(gj==1)isfluid(i,j,k)=0
+              if(gj==ly)isfluid(i,j,k)=0
+              if(gk==1)isfluid(i,j,k)=0
+              if(gk==lz)isfluid(i,j,k)=0
             enddo
           enddo
         enddo
-          
+         
     !*************************************initial conditions ************************    
         u=0.0_db
         v=0.0_db
         w=0.0_db
+        rho=1.0_db  !tot dens
         do k=1,nz
           gk=nz*coords(2)+k
-          if(gk.ne.1)cycle
+          !if(gk.ne.1)cycle
           do j=1,ny
             gj=ny*coords(1)+j
             do i=1,nx
-              if((float(i)-lx/2.0)**2 + (float(gj)-ly/2.0)**2<=10**2)then
-                call random_number(rrx)
-                call random_number(rry)
-                w(i,gj,gk)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
+              gi=i
+              if((float(gi)-lx/2.0)**2.0 + (float(gj)-ly/2.0)**2.0+ (float(gk)-lz/2.0)**2.0<=6.0**2.0)then
+                 rho(i,j,k)=1.05_db
+                 w(i,j,k)=0.01_db
+                 
+!                call random_number(rrx)
+!                call random_number(rry)
+!                w(i,j,k)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
+                 
               endif
             enddo
           enddo
         enddo
-        rho=1.0_db  !tot dens
+        
         !do ll=0,nlinks
         if(dumpYN.eq.0)then
             do k=1,nz
@@ -124,6 +160,7 @@ program recursiveTSLB3D
                 do j=1,ny
                   gj=ny*coords(1)+j
                     do i=1,nx
+                      gi=i
                           if(isfluid(i,j,k).eq.1)then
                               !0
                               
@@ -301,11 +338,16 @@ program recursiveTSLB3D
         write(6,*) 'max fx',huge(fy)
         write(6,*) 'max fx',huge(fz)
         write(6,*) '*******************************************'
+        
+        
     !$acc data copy(f,isfluid,p0,p1,p2,p3,&
              !$acc& pxx,pyy,pzz,pxy,pxz,pyz,rho,u,v,w,rhoprint,velprint)
     !$if _OPENACC        
         if(myrank==0)call printDeviceProperties(ngpus,devNum,devType,6)
     !$endif
+    
+     
+    
     iframe=0
     iframe2D=0
     if(myrank==0)write(6,'(a,i8,a,i8,3f16.4)')'start step : ',0,' frame ',iframe
@@ -331,13 +373,18 @@ program recursiveTSLB3D
       enddo
       !$acc end kernels 
       !$acc update host(rhoprint,velprint)
+      !$acc wait
+      
+      
       if(lvtk)then
         call driver_print_vtk_sync(iframe)
       else
         call driver_print_raw_sync(iframe)
       endif
     endif
-      
+    
+    call dostop('ciao mondo')
+    
     !*************************************time loop************************  
     call cpu_time(ts1)
     do step=1,nsteps 

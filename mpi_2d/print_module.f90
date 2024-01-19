@@ -301,7 +301,7 @@
       if(.not. lexist)then
         makedirectory=repeat(' ',255)
         makedirectory = 'mkdir output'
-        call system(makedirectory)
+        if(myrank==0)call system(makedirectory)
       endif
       mystring120=repeat(' ',120)
       
@@ -481,15 +481,18 @@
     
     use openacc
     
+    use iso_c_binding 
+    
     integer :: ngpus,dev_Num
     integer(acc_device_kind) :: dev_Type
   
     integer,intent(in) :: iu 
-    integer :: tot_mem,shared_mem
+    integer(c_size_t) :: tot_mem
     character(len=255) :: myname,myvendor,mydriver
     
     call acc_get_property_string(dev_num,dev_type,acc_property_name,myname)
     tot_mem = acc_get_property(dev_num,dev_type,acc_property_memory)
+    !call acc_get_property_string(dev_num,dev_type,acc_property_memory,tot_mem)
     call acc_get_property_string(dev_num,dev_type,acc_property_vendor,myvendor)
     call acc_get_property_string(dev_num,dev_type,acc_property_driver,mydriver)
     
@@ -857,18 +860,7 @@
    
    integer :: e_io
    
-   
-    
    call write_file_vtk_par(e_io)
-    
-   open(unit=345,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(345)head1,ndatavtk(1),rhoprint,footervtk(1)
-   close(345)
-   open(unit=346,file=trim(sevt2), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(346)head2,ndatavtk(2),velprint,footervtk(2)
-   close(346)
    
   end subroutine print_parvtk_sync
   
@@ -933,4 +925,116 @@
    close(780) 
    
   end subroutine close_print_async
+  
+  subroutine copystring(oldstring,newstring,lenstring)
+ 
+!***********************************************************************
+!     
+!     LBsoft subroutine to copy one character string into another
+!     originally written in JETSPIN by M. Lauricella et al.
+!     
+!     licensed under the 3-Clause BSD License (BSD-3-Clause)
+!     author: M. Lauricella
+!     last modification July 2018
+!     
+!***********************************************************************
+  
+  implicit none
+  
+  character(len=*), intent(in) :: oldstring
+  character(len=*), intent(out) :: newstring
+  integer, intent(in) :: lenstring
+  
+  integer :: i
+  
+  do i=1,lenstring
+    newstring(i:i)=oldstring(i:i)
+  enddo
+  
+  return
+  
+ end subroutine copystring
+ 
+ function intstr(string,lenstring,laststring)
+ 
+!***********************************************************************
+!     
+!     LBsoft subroutine for extracting integers from a character 
+!     string
+!     originally written in JETSPIN by M. Lauricella et al.
+!     
+!     licensed under the 3-Clause BSD License (BSD-3-Clause)
+!     author: M. Lauricella
+!     last modification July 2018
+!     
+!***********************************************************************
+  
+  implicit none
+  
+  character(len=*), intent(inout) :: string
+  integer, intent(in) :: lenstring
+  integer, intent(out) :: laststring
+  
+  integer :: intstr
+  
+  integer :: j,isn
+  character*1, parameter, dimension(0:9) :: & 
+   n=(/'0','1','2','3','4','5','6','7','8','9'/)
+  logical :: flag,lcount,final
+  character*1 :: ksn
+  character*1, dimension(lenstring) :: word
+  
+  do j=1,lenstring
+    word(j)=string(j:j)
+  enddo
+  
+  isn=1
+  laststring=0
+  ksn='+'
+  intstr=0
+  flag=.false.
+  final=.false.
+  lcount=.false.
+  
+  
+  do while(laststring<lenstring.and.(.not.final))
+    
+    laststring=laststring+1
+    flag=.false.
+    
+    do j=0,9
+      
+      if(n(j)==word(laststring))then
+        
+        intstr=10*intstr+j
+        lcount=.true.
+        flag=.true.
+        
+      endif
+    
+    enddo
+    
+    if(lcount.and.(.not.flag))final=.true.
+    if(flag .and. ksn=='-')isn=-1
+    ksn=word(laststring)
+    
+  enddo
+
+  intstr=isn*intstr
+
+  do j=laststring,lenstring
+    word(j-laststring+1)=word(j)
+  enddo
+  do j=lenstring-laststring+2,lenstring
+    word(j)=' '
+  enddo
+  
+  do j=1,lenstring
+    string(j:j)=word(j)
+  enddo
+  
+  return
+  
+  end function intstr
+  
  endmodule

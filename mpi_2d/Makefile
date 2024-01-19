@@ -34,8 +34,8 @@ nvfortran:
 	$(MAKE) CC=nvcc \
 	FC=nvfortran \
 	CFLAGS="-O3 -I $(CURDIR) -c" \
-	FFLAGS="-acc -Mpreprocess -Minfo=all -ta=tesla -O3 -I $(CURDIR) -c" \
-	LDFLAGS="-acc -Mpreprocess -Minfo=all -ta=tesla -O3 -I $(CURDIR) -o" \
+	FFLAGS="-acc -Mpreprocess -Minfo=all -gpu=cc70 -O3 -I $(CURDIR) -c" \
+	LDFLAGS="-acc -Mpreprocess -Minfo=all -gpu=cc70 -O3 -I $(CURDIR) -o" \
 	TYPE="seq" \
 	EX=$(EX) BINROOT=$(BINROOT) seq
 

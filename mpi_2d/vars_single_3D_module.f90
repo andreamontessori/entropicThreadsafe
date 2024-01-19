@@ -80,7 +80,7 @@ module vars
     logical :: lelittle
     character(len=mxln) :: dir_out
     character(len=mxln) :: extentvtk
-    character(len=mxln) :: sevt1,sevt2
+    character(len=mxln) :: sevt1,sevt2,arg,directive
     character(len=1), allocatable, dimension(:) :: head1,head2
     
     

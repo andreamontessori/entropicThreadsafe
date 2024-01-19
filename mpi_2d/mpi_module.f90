@@ -67,6 +67,8 @@
       nx = lx/proc_x
       ny = ly/proc_y
       nz = lz/proc_z
+      
+      
 !
 ! some check
       lcheck=.false.
@@ -95,21 +97,22 @@
          stop
       endif
 !
-#ifdef OPENACC
-      ndev= acc_get_num_devices(acc_device_nvidia)
-      call acc_set_device_num(mydev,acc_device_nvidia)
-      write(6,*) "INFO: using GPU",mydev, ndev
-#endif
-!
-#ifdef OPENACC
+#ifdef _OPENACC
       ndev= acc_get_num_devices(acc_device_nvidia)
       if(ndev == 0) then
-         write(6,*) "WARNINIG: No GPUs found:", ndev
-      else 
-         write(6,*) "INFO: GPUs found:", ndev
+         if(myrank==0)write(6,*) "WARNINIG: No GPUs found:", ndev
+         call dostop
       endif
+      mydev = mod(myrank, ndev)
+      if(myrank==0)write(6,'(i4,a,i4,a)') ndev," GPUs available for", &
+       nprocs," MPI processes"
+      call acc_set_device_num(mydev,acc_device_nvidia)
+      write(6,'(a,i4,a,i4)') "The MPI process ",myrank," is using the GPU ",mydev
 #endif
+!
 
+      
+      
       rreorder=.false.
         
       periodic(1) = .true.
@@ -129,10 +132,7 @@
                                  MPI_INFO_NULL, localcomm, ierr)
       call MPI_Comm_rank(localcomm, mydev, ierr)
       call MPI_get_processor_name(hname,ijlen,ierr)
-#ifdef OPENACC
-      call acc_set_device_num(mydev,acc_device_nvidia)
-#endif
-      write(6,*) "INFO: rank",myrank," GPU",mydev, "node ", hname
+
 !
 ! check
       if ((proc_x*proc_y*proc_z).ne.nprocs) then
@@ -141,8 +141,7 @@
                              proc_x*proc_y*proc_z, 'procs'
           write(*,*) 'ERROR: launched on', nprocs, 'processes'
         end if
-        call MPI_finalize(ierr)
-        stop
+        call dostop
       end if
 !
 !
@@ -279,6 +278,7 @@
       start_p(2) = myoffset(2)
       start_p(3) = myoffset(3)
       
+      
       allocate(yinidom(0:proc_y-1))
       allocate(yfindom(0:proc_y-1))
       yinidom(:)=0
@@ -319,8 +319,7 @@
 
       
       end subroutine setup_mpi
-      
-     
+ 
       subroutine write_file_vtk_par(e_io)
  
 !***********************************************************************
@@ -337,10 +336,11 @@
        implicit none
   
        integer, intent(out) :: e_io
-       
+#ifdef MPI         
        integer(kind=MPI_OFFSET_KIND) :: tempoffset
+#endif
        integer :: nns
-       character(len=mxln) :: sheadervtk
+       character(len=500) :: sheadervtk
        
        integer :: ioffset
        character(1), parameter :: end_rec = char(10)
@@ -349,38 +349,40 @@
        integer, parameter :: byter4  = 4
        integer, parameter :: byter8  = 8
        integer, parameter :: nbuffsub = 0
-       integer :: filetypesub,imemtype,filetypesubv
+       integer :: filetypesub,imemtype,filetypesubv,fdens,fvel,ierr
        
        integer, dimension(3) :: memDims,memOffs
        integer, dimension(4) :: velglobalDims,velldims,velmystarts, &
         velmemDims,velmemOffs
-       
+
+    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!density!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
        
        sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(namevarvtk(1))// &
         '_'//trim(write_fmtnumb(iframe)) // '.vti'
        
-  
-       call MPI_FILE_OPEN(MPI_COMM_WORLD,trim(sevt1), &
-                       MPI_MODE_WRONLY + MPI_MODE_CREATE, &
-                       MPI_INFO_NULL,345,e_io)
-                       
+       
+#ifdef MPI                 
+       
+       call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(sevt1), &
+			MPI_MODE_CREATE + MPI_MODE_WRONLY, &
+			MPI_INFO_NULL,fdens,e_io)
                        
       tempoffset=int(0,kind=MPI_OFFSET_KIND)
       
-      sheadervtk=repeat(' ',mxln)
+      sheadervtk=repeat(' ',500)
       sheadervtk=headervtk(1)
       nns=nheadervtk(1)
       
-      if(myrank==0)call MPI_File_write_at(345,tempoffset,sheadervtk(1:nns),nns, &
+      if(myrank==0)call MPI_File_write_at(fdens,tempoffset,sheadervtk(1:nns),nns, &
        MPI_CHARACTER,MPI_STATUS_IGNORE,e_io)
 
       ioffset=vtkoffset(1)
       tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
       
-      if(myrank==0)call MPI_File_write_at(345,tempoffset,int(ndatavtk(1),kind=4),1, &
+      if(myrank==0)call MPI_File_write_at(fdens,tempoffset,int(ndatavtk(1),kind=4),1, &
         MPI_INTEGER,MPI_STATUS_IGNORE,e_io)
-      
+ 
       call MPI_Type_create_subarray(3,gsizes,lsizes,start_p, &
        MPI_ORDER_FORTRAN,MPI_REAL4,filetypesub,e_io)
         
@@ -389,7 +391,7 @@
       ioffset=vtkoffset(1)+byteint
       tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
    
-      call MPI_File_Set_View(345,tempoffset,MPI_REAL4,filetypesub, &
+      call MPI_File_Set_View(fdens,tempoffset,MPI_REAL4,filetypesub, &
        "native",MPI_INFO_NULL,e_io)
       ! We need full local sizes: memDims
       memDims = lsizes + 2*nbuffsub
@@ -401,15 +403,15 @@
 
       call MPI_TYPE_COMMIT(imemtype,e_io)
 
-      call MPI_FILE_WRITE_ALL(345,rhoprint,1,imemtype,MPI_STATUS_IGNORE,e_io)
+      call MPI_FILE_WRITE_ALL(fdens,rhoprint,1,imemtype,MPI_STATUS_IGNORE,e_io)
       
       ioffset=vtkoffset(1)+byteint+ndatavtk(1)
       tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
-      
-      if(myrank==0)call MPI_File_write_at(345,tempoffset,footervtk(1),30, &
+     
+      if(myrank==0)call MPI_File_write_at(fdens,tempoffset,footervtk(1),30, &
        MPI_CHARACTER,MPI_STATUS_IGNORE,e_io)
       
-      call MPI_FILE_CLOSE(345, e_io)
+      call MPI_FILE_CLOSE(fdens,e_io)
       
       
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -419,16 +421,16 @@
       
       call MPI_FILE_OPEN(MPI_COMM_WORLD,trim(sevt2), &
                        MPI_MODE_WRONLY + MPI_MODE_CREATE, &
-                       MPI_INFO_NULL,346,e_io)
+                       MPI_INFO_NULL,fvel,e_io)
                        
                        
       tempoffset=int(0,kind=MPI_OFFSET_KIND)
       
-      sheadervtk=repeat(' ',mxln)
+      sheadervtk=repeat(' ',500)
       sheadervtk=headervtk(2)
       nns=nheadervtk(2)
       
-      if(myrank==0)call MPI_File_write_at(346,tempoffset,sheadervtk(1:nns),nns, &
+      if(myrank==0)call MPI_File_write_at(fvel,tempoffset,sheadervtk(1:nns),nns, &
        MPI_CHARACTER,MPI_STATUS_IGNORE,e_io)
       
       velglobalDims(1)=3
@@ -441,7 +443,7 @@
       ioffset=vtkoffset(2)
       tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
       
-      if(myrank==0)call MPI_File_write_at(346,tempoffset,int(ndatavtk(2),kind=4),1, &
+      if(myrank==0)call MPI_File_write_at(fvel,tempoffset,int(ndatavtk(2),kind=4),1, &
         MPI_INTEGER,MPI_STATUS_IGNORE,e_io)
  
   
@@ -453,7 +455,7 @@
       ioffset=vtkoffset(2)+byteint
       tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
    
-      call MPI_File_Set_View(346,tempoffset,MPI_REAL4,filetypesubv, &
+      call MPI_File_Set_View(fvel,tempoffset,MPI_REAL4,filetypesubv, &
         "native",MPI_INFO_NULL,e_io)
       ! We need full local sizes: memDims
       velmemDims(1) = vellDims(1)
@@ -465,17 +467,17 @@
 
       call MPI_TYPE_COMMIT(imemtype,e_io)
 
-      call MPI_FILE_WRITE_ALL(346,velprint,1,imemtype,MPI_STATUS_IGNORE,e_io)
+      call MPI_FILE_WRITE_ALL(fvel,velprint,1,imemtype,MPI_STATUS_IGNORE,e_io)
   
       ioffset=vtkoffset(2)+byteint+ndatavtk(2)
       tempoffset=int(ioffset,kind=MPI_OFFSET_KIND)
       
-      if(myrank==0)call MPI_File_write_at(346,tempoffset,footervtk(2),30, &
+      if(myrank==0)call MPI_File_write_at(fvel,tempoffset,footervtk(2),30, &
        MPI_CHARACTER,MPI_STATUS_IGNORE,e_io)
       
-      call MPI_FILE_CLOSE(346, e_io)
+      call MPI_FILE_CLOSE(fvel, e_io)
       
-                       
+#endif                       
       return
   
       end subroutine write_file_vtk_par
@@ -520,10 +522,35 @@
       integer :: GET_RANK_POINT
       
       temp=GET_COORD_POINT(ii,jj,kk)
-       
+#ifdef MPI       
       call MPI_Cart_rank(lbecomm, temp, GET_RANK_POINT,ierr)
-      
-      
+#else
+      GET_RANK_POINT=0
+#endif
+           
     end function GET_RANK_POINT
+    
+    subroutine dostop(mystring)
+    
+     implicit none
+     
+     integer :: ierr
+     
+     character(len=*), optional :: mystring
+     
+     if(present(mystring))then
+       if(myrank==0)then
+         write(6,'(a)')mystring
+         call flush(6)
+       endif
+     endif
+     
+#ifdef MPI
+     call MPI_Barrier(MPI_COMM_WORLD,ierr)
+     call MPI_finalize(ierr)
+#endif
+     stop
+    
+    end subroutine dostop
       
   end module mpi_template
