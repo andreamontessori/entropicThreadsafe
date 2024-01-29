@@ -24,8 +24,8 @@ program recursiveTSLB3D
     one_ov_nu=1.0_db/visc_LB
     dumpYN=0
     !interface
-    sigma=0.001
-    sharp_c=0.2*3
+    sigma=0.01
+    sharp_c=0.3*3
 
 
 #ifdef _OPENACC
@@ -314,11 +314,11 @@ program recursiveTSLB3D
     iframe2D=0
     write(6,'(a,i8,a,i8,3f16.4)')'start step : ',0,' frame ',iframe
     
-    if(lprint)then  
+    !if(lprint)then  
         call init_output(nx,ny,nz,1,lvtk)
         call string_char(head1,nheadervtk(1),headervtk(1))
         call string_char(head2,nheadervtk(2),headervtk(2))
-    endif
+    !endif
     
     if(lprint)then
       !$acc kernels present(rhoprint,velprint,rho,u,v,w) 
@@ -606,13 +606,13 @@ program recursiveTSLB3D
             endif
           endif
         !***********************************Print on files 2D************************
-          if(mod(step,stamp2D).eq.0)write(6,'(a,i8)')'step : ',step
-            if(lprint)then
+          if(mod(step,stamp2D).eq.0) write(6,'(a,i8)')'step : ',step
+            !if(lprint)then
               if(mod(step,stamp2D).eq.0)then
                 iframe2D=iframe2D+1
                 !$acc update host(rho,phi,u,v,w) 
                 call print_raw_slice_2c_sync(iframe2D)
-            endif
+            !endif
           endif
         !***********************************dump f************************
           if(mod(step,dumpstep).eq.0) then
