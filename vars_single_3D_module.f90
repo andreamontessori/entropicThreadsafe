@@ -10,14 +10,15 @@ module vars
     
     real(kind=db),parameter :: pi_greek=3.14159265359793234626433
     
-    real(kind=db)  :: ts1,ts2,p0,p1,p2,p3,p1dcssq,p2dcssq,p3dcssq
+    real(kind=db)  :: ts1,ts2,p0,p1,p2,p3,p0g,p1g
     real(kind=db) :: visc_LB,uu,udotc,omega
     real(kind=db) :: tau,one_ov_nu,cssq,fx,fy,fz,temp
 
-    real(kind=db) :: fneq1,feq
+    real(kind=db) :: fneq1,feq,feqs,us,vs,ws
     
     integer(kind=4), allocatable,dimension(:,:,:)   :: isfluid
-    real(kind=db), allocatable, dimension(:,:,:) :: rho,rhoA,rhoB,psi,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz
+    real(kind=db), allocatable, dimension(:,:,:) :: rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz
+    real(kind=db), allocatable, dimension(:,:,:) :: phi,normx,normy,normz
     real(kind=db), allocatable, dimension(:,:,:,:) :: f,g
     real(kind=db) :: mymemory,totmemory
 	real(kind=db) :: uwall

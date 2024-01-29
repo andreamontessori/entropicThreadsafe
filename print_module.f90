@@ -710,26 +710,6 @@
    
   end subroutine dump_distros_1c_3d
 
-  subroutine dump_distros_2c_3d
-  
-   implicit none
-   
-   sevt1 = 'dump/' // 'out'//'_'//'f'//'_'// '.raw'
-   open(unit=1045,file=trim(sevt1),status='replace',form='unformatted')
-   do ll=0,26
-      write(1045) f(:,:,:,ll)
-   enddo
-   close(1045)
-
-   sevt1 = 'dump/' // 'out'//'_'//'g'//'_'// '.raw'
-   open(unit=1045,file=trim(sevt1),status='replace',form='unformatted')
-   do ll=0,26
-      write(1045) g(:,:,:,ll)
-   enddo
-   close(1045)
-   
-  end subroutine dump_distros_2c_3d
-
   subroutine read_distros_1c_3d
 
       implicit none
@@ -741,25 +721,6 @@
       enddo
       close(1045)
   end subroutine read_distros_1c_3d
-
-  subroutine read_distros_2c_3d
-
-      implicit none
-
-      sevt1 = 'dump/' // 'out'//'_'//'f'// '_'// '.raw'
-      open(unit=1045,file=trim(sevt1), form='unformatted', status='old')
-      do ll=0,26
-          read(1045) f(:,:,:,ll)
-      enddo
-      close(1045)
-
-      sevt1 = 'dump/' // 'out'//'_'//'g'// '_'// '.raw'
-      open(unit=1045,file=trim(sevt1), form='unformatted', status='old')
-      do ll=0,26
-          read(1045) g(:,:,:,ll)
-      enddo
-      close(1045)
-  end subroutine read_distros_2c_3d
 
   subroutine print_raw_slice_sync(iframe)
   
@@ -854,23 +815,23 @@
    
    integer, intent(in) :: iframe
    !rho
-   sevt1 = trim(dir_out) // 'out'//'_'//'rhoxy'// &
+   sevt1 = trim(dir_out) // 'out'//'_'//'phixy'// &
     '_'//trim(write_fmtnumb(iframe)) // '.raw'
    open(unit=745,file=trim(sevt1), &
     status='replace',action='write',access='stream',form='unformatted')
-   write(745) rhoA(:,:,nz/2)
+   write(745) phi(:,:,nz/2)
    close(745)
-   sevt1 = trim(dir_out) // 'out'//'_'//'rhoxz'// &
+   sevt1 = trim(dir_out) // 'out'//'_'//'phixz'// &
     '_'//trim(write_fmtnumb(iframe)) // '.raw'
    open(unit=746,file=trim(sevt1), &
     status='replace',action='write',access='stream',form='unformatted')
-   write(746) rhoA(:,ny/2,:)
+   write(746) phi(:,ny/2,:)
    close(746)
-   sevt1 = trim(dir_out) // 'out'//'_'//'rhoyz'// &
+   sevt1 = trim(dir_out) // 'out'//'_'//'phiyz'// &
     '_'//trim(write_fmtnumb(iframe)) // '.raw'
    open(unit=747,file=trim(sevt1), &
     status='replace',action='write',access='stream',form='unformatted')
-   write(747) rhoA(nx/2,:,:)
+   write(747) phi(nx/2,:,:)
    close(747)
    
    !u

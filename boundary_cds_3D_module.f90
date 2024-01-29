@@ -7,7 +7,73 @@ module bcs3D
     implicit none
         
     contains
+        subroutine bcs_all_bback_2c
+        !$acc kernels
+        !$acc loop independent 
+            do k=1,nz
+                !$acc loop independent 
+                do j=1,ny
+                    !$acc loop independent 
+                    do i=1,nx
+                        if(isfluid(i,j,k).eq.0)then
+                                ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
+                            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
+                            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
+                            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
+                            f(i+1,j-1,k-1,25)=f(i,j,k,26) !gpc 
+                            f(i-1,j+1,k+1,26)=f(i,j,k,25) !hpc
 
+                            f(i-1,j-1,k+1,23)=f(i,j,k,24) !gpc 
+                            f(i+1,j+1,k-1,24)=f(i,j,k,23) !hpc
+
+                            f(i+1,j-1,k+1,21)=f(i,j,k,22) !gpc 
+                            f(i-1,j+1,k-1,22)=f(i,j,k,21) !hpc
+
+                            f(i+1,j+1,k+1,19)=f(i,j,k,20) !gpc 
+                            f(i-1,j-1,k-1,20)=f(i,j,k,19) !hpc
+
+                            f(i+1,j,k-1,18)=f(i,j,k,17) !gpc 
+                            f(i-1,j,k+1,17)=f(i,j,k,18) !hpc
+
+                            f(i-1,j,k-1,16)=f(i,j,k,15) !gpc 
+                            f(i+1,j,k+1,15)=f(i,j,k,16) !hpc
+
+                            f(i,j-1,k+1,14)=f(i,j,k,13)!gpc 
+                            f(i,j+1,k-1,13)=f(i,j,k,14)!hpc
+                            
+                            f(i,j-1,k-1,12)=f(i,j,k,11)!gpc 
+                            f(i,j+1,k+1,11)=f(i,j,k,12)!hpc
+
+                            f(i-1,j+1,k,10)=f(i,j,k,9)!gpc 
+                            f(i+1,j-1,k,9)=f(i,j,k,10)!hpc
+
+                            f(i-1,j-1,k,8)=f(i,j,k,7)!gpc 
+                            f(i+1,j+1,k,7)=f(i,j,k,8)!hpc
+
+                            f(i,j,k-1,6)=f(i,j,k,5)!gpc 
+                            f(i,j,k+1,5)=f(i,j,k,6)!hpc 
+
+                            f(i,j-1,k,4)=f(i,j,k,3)!gpc 
+                            f(i,j+1,k,3)=f(i,j,k,4)!hpc 
+
+                            f(i-1,j,k,2)=f(i,j,k,1)!gpc 
+                            f(i+1,j,k,1)=f(i,j,k,2)!hpc 
+							!gggggggggggggggggggggggggg
+							g(i,j,k-1,6)=g(i,j,k,5)!gpc 
+                            g(i,j,k+1,5)=g(i,j,k,6)!hpc 
+
+                            g(i,j-1,k,4)=g(i,j,k,3)!gpc 
+                            g(i,j+1,k,3)=g(i,j,k,4)!hpc 
+
+                            g(i-1,j,k,2)=g(i,j,k,1)!gpc 
+                            g(i+1,j,k,1)=g(i,j,k,2)!hpc 
+                        endif
+                    enddo
+                enddo
+            enddo    
+		!$acc end kernels      
+    endsubroutine
+    !***************************************************
     subroutine bcs_poiseuille_w_bback
         !$acc kernels
         !$acc loop independent 
@@ -792,102 +858,4 @@ module bcs3D
             !$acc end kernels 
 		
 	endsubroutine
-    !*****************************************************
-    subroutine bcs_allbback_multicomp
-                
-        !$acc kernels
-        !$acc loop independent 
-            do k=1,nz
-                !$acc loop independent 
-                do j=1,ny
-                    !$acc loop independent 
-                    do i=1,nx
-                        if(isfluid(i,j,k).eq.0)then
-                            ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
-                            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
-                            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
-                            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
-                            f(i+1,j-1,k-1,25)=f(i,j,k,26) !gpc 
-                            f(i-1,j+1,k+1,26)=f(i,j,k,25) !hpc
-
-                            f(i-1,j-1,k+1,23)=f(i,j,k,24) !gpc 
-                            f(i+1,j+1,k-1,24)=f(i,j,k,23) !hpc
-
-                            f(i+1,j-1,k+1,21)=f(i,j,k,22) !gpc 
-                            f(i-1,j+1,k-1,22)=f(i,j,k,21) !hpc
-
-                            f(i+1,j+1,k+1,19)=f(i,j,k,20) !gpc 
-                            f(i-1,j-1,k-1,20)=f(i,j,k,19) !hpc
-
-                            f(i+1,j,k-1,18)=f(i,j,k,17) !gpc 
-                            f(i-1,j,k+1,17)=f(i,j,k,18) !hpc
-
-                            f(i-1,j,k-1,16)=f(i,j,k,15) !gpc 
-                            f(i+1,j,k+1,15)=f(i,j,k,16) !hpc
-
-                            f(i,j-1,k+1,14)=f(i,j,k,13)!gpc 
-                            f(i,j+1,k-1,13)=f(i,j,k,14)!hpc
-                            
-                            f(i,j-1,k-1,12)=f(i,j,k,11)!gpc 
-                            f(i,j+1,k+1,11)=f(i,j,k,12)!hpc
-
-                            f(i-1,j+1,k,10)=f(i,j,k,9)!gpc 
-                            f(i+1,j-1,k,9)=f(i,j,k,10)!hpc
-
-                            f(i-1,j-1,k,8)=f(i,j,k,7)!gpc 
-                            f(i+1,j+1,k,7)=f(i,j,k,8)!hpc
-
-                            f(i,j,k-1,6)=f(i,j,k,5)!gpc 
-                            f(i,j,k+1,5)=f(i,j,k,6)!hpc 
-
-                            f(i,j-1,k,4)=f(i,j,k,3)!gpc 
-                            f(i,j+1,k,3)=f(i,j,k,4)!hpc 
-
-                            f(i-1,j,k,2)=f(i,j,k,1)!gpc 
-                            f(i+1,j,k,1)=f(i,j,k,2)!hpc 
-                            !**************************
-                            g(i+1,j-1,k-1,25)=g(i,j,k,26) !gpc 
-                            g(i-1,j+1,k+1,26)=g(i,j,k,25) !hpc
-
-                            g(i-1,j-1,k+1,23)=g(i,j,k,24) !gpc 
-                            g(i+1,j+1,k-1,24)=g(i,j,k,23) !hpc
-
-                            g(i+1,j-1,k+1,21)=g(i,j,k,22) !gpc 
-                            g(i-1,j+1,k-1,22)=g(i,j,k,21) !hpc
-
-                            g(i+1,j+1,k+1,19)=g(i,j,k,20) !gpc 
-                            g(i-1,j-1,k-1,20)=g(i,j,k,19) !hpc
-
-                            g(i+1,j,k-1,18)=g(i,j,k,17) !gpc 
-                            g(i-1,j,k+1,17)=g(i,j,k,18) !hpc
-
-                            g(i-1,j,k-1,16)=g(i,j,k,15) !gpc 
-                            g(i+1,j,k+1,15)=g(i,j,k,16) !hpc
-
-                            g(i,j-1,k+1,14)=g(i,j,k,13)!gpc 
-                            g(i,j+1,k-1,13)=g(i,j,k,14)!hpc
-
-                            g(i,j-1,k-1,12)=g(i,j,k,11)!gpc 
-                            g(i,j+1,k+1,11)=g(i,j,k,12)!hpc
-
-                            g(i-1,j+1,k,10)=g(i,j,k,9)!gpc 
-                            g(i+1,j-1,k,9)=g(i,j,k,10)!hpc
-
-                            g(i-1,j-1,k,8)=g(i,j,k,7)!gpc 
-                            g(i+1,j+1,k,7)=g(i,j,k,8)!hpc
-
-                            g(i,j,k-1,6)=g(i,j,k,5)!gpc 
-                            g(i,j,k+1,5)=g(i,j,k,6)!hpc 
-
-                            g(i,j-1,k,4)=g(i,j,k,3)!gpc 
-                            g(i,j+1,k,3)=g(i,j,k,4)!hpc 
-
-                            g(i-1,j,k,2)=g(i,j,k,1)!gpc 
-                            g(i+1,j,k,1)=g(i,j,k,2)!hpc
-                        endif
-                    enddo
-                enddo
-            enddo
-        !$acc end kernels
-    endsubroutine
 endmodule
