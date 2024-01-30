@@ -345,7 +345,7 @@ program recursiveTSLB3D
     !*************************************time loop************************  
     call cpu_time(ts1)
     do step=1,nsteps 
-        !***********************************moments collision bbck + forcing************************ 
+    !***********************************moments collision bbck + forcing************************ 
           !$acc kernels
           !$acc loop collapse(3)
           do k=1,nz
@@ -360,7 +360,7 @@ program recursiveTSLB3D
                           pxz(i,j,k)=0.0_db
                           pyz(i,j,k)=0.0_db
                           !
-						  phi(i,j,k) = g(i,j,k,0)+g(i,j,k,1)+g(i,j,k,2)+g(i,j,k,3)+g(i,j,k,4)+g(i,j,k,5)+g(i,j,k,6)
+						              phi(i,j,k) = g(i,j,k,0)+g(i,j,k,1)+g(i,j,k,2)+g(i,j,k,3)+g(i,j,k,4)+g(i,j,k,5)+g(i,j,k,6)
                           rho(i,j,k) = f(i,j,k,0)+f(i,j,k,1)+f(i,j,k,2)+f(i,j,k,3)+f(i,j,k,4)+f(i,j,k,5) &
                               +f(i,j,k,6)+f(i,j,k,7)+f(i,j,k,8)+f(i,j,k,9)+f(i,j,k,10)+f(i,j,k,11) &
                               +f(i,j,k,12)+f(i,j,k,13)+f(i,j,k,14)+f(i,j,k,15)+f(i,j,k,16)+f(i,j,k,17) &
@@ -579,7 +579,7 @@ program recursiveTSLB3D
         enddo
 		  enddo
           !$acc end kernels
-        !***********************************Print on files 3D************************
+    !***********************************Print on files 3D************************
           if(mod(step,stamp).eq.0)write(6,'(a,i8)')'step : ',step
             if(lprint)then
               if(mod(step,stamp).eq.0)then
@@ -605,7 +605,7 @@ program recursiveTSLB3D
               endif
             endif
           endif
-        !***********************************Print on files 2D************************
+    !***********************************Print on files 2D************************
           if(mod(step,stamp2D).eq.0) write(6,'(a,i8)')'step : ',step
             !if(lprint)then
               if(mod(step,stamp2D).eq.0)then
@@ -614,13 +614,13 @@ program recursiveTSLB3D
                 call print_raw_slice_2c_sync(iframe2D)
             !endif
           endif
-        !***********************************dump f************************
+    !***********************************dump f************************
           if(mod(step,dumpstep).eq.0) then
                 write(6,'(a,i8)')'dump step at : ',step
                 !$acc update host(f) 
                 call dump_distros_1c_3d
           endif
-        !***********************************collision + no slip + forcing: fused implementation*********
+    !***********************************collision + no slip + forcing: fused implementation*********
           !$acc kernels
           !$acc loop collapse(3) private(feq,feqs,curvature,ffx_s,ffy_s,ffz_s)
           do k=1,nz
@@ -838,7 +838,7 @@ program recursiveTSLB3D
                           g(i,j+1,k,3)=feq+feqs
                           !g4
                           feq=p1g*phi(i,j,k)*(1 - 3*v(i,j,k))
-                          g(i,j-1,k,4)=feq-feqs
+                          g(i,j-1,k,4)=feq-feqsnv
                           !g5
                           feqs=p1g*sharp_c*phi(i,j,k)*(1-phi(i,j,k))*(normz(i,j,k))
                           feq=p1g*phi(i,j,k)*(1 + 3*w(i,j,k))
@@ -851,7 +851,7 @@ program recursiveTSLB3D
               enddo
           enddo
           !$acc end kernels
-        !***********************************boundary conditions ********************************!
+    !***********************************boundary conditions ********************************!
         call bcs_all_bback_2c
       
     enddo 
