@@ -31,10 +31,10 @@ program recursiveTSLB3D
 #endif
 
     !*******************************user parameters and allocations**************************
-        nx=760
-        ny=300
+        nx=1600
+        ny=130
         nz=130
-        nsteps=1000000
+        nsteps=10
         stamp=10000
         stamp2D=2000
         dumpstep=1000000
@@ -42,8 +42,8 @@ program recursiveTSLB3D
         fy=0.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
 		uwall=0.05
-        lprint=.true.
-        lvtk=.true.
+        lprint=.false.
+        lvtk=.false.
         lasync=.false.
         lpbc=.true.
         

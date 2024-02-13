@@ -18,13 +18,13 @@ program recursiveTSLB3D
     !$endif
 
     nlinks=26 !pari!
-    tau=0.8_db
+    tau=0.5004_db
     cssq=1.0_db/3.0_db
     visc_LB=cssq*(tau-0.5_db)
     one_ov_nu=1.0_db/visc_LB
     dumpYN=0
     !interface
-    sigma=0.01
+    sigma=0.001
     sharp_c=0.3*3
 
 
@@ -35,19 +35,19 @@ program recursiveTSLB3D
 #endif
 
     !*******************************user parameters and allocations**************************
-        nx=128
-        ny=128
-        nz=128
-        nsteps=50000
-        stamp=2000000
-        stamp2D=5000
+        nx=220
+        ny=220
+        nz=400
+        nsteps=300000
+        stamp=3000
+        stamp2D=1000
         dumpstep=100000000
         fx=0.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
 		    uwall=0.05
-        lprint=.false.
-        lvtk=.false.
+        lprint=.true.
+        lvtk=.true.
         lasync=.false.
         lpbc=.false.
         
@@ -59,10 +59,10 @@ program recursiveTSLB3D
         allocate(isfluid(1:nx,1:ny,1:nz))
         
         if(lprint)then
-          allocate(rhoprint(1:nx,1:ny,1:nz))
-          allocate(velprint(1:3,1:nx,1:ny,1:nz))
-          rhoprint(1:nx,1:ny,1:nz)=0.0
-          velprint(1:3,1:nx,1:ny,1:nz)=0.0
+          !allocate(rhoprint(1:nx,1:ny,1:nz))
+          !allocate(velprint(1:3,1:nx,1:ny,1:nz))
+          !rhoprint(1:nx,1:ny,1:nz)=0.0
+          !velprint(1:3,1:nx,1:ny,1:nz)=0.0
         endif
         !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1/)
         !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0/)
@@ -84,14 +84,24 @@ program recursiveTSLB3D
         isfluid(:,:,1)=0 !bottom
         isfluid(:,:,nz)=0 !top
     !*************************************initial conditions ************************    
-        u=0.0_db
-        v=0.0_db
-        w=0.0_db
-        rho=1.0_db  !tot dens
-		phi=0.0
-		normx=0
-		normy=0
-		normz=0
+      u=0.0_db
+      v=0.0_db
+      w=0.0_db
+      rho=1.0_db  !tot dens
+      phi=0.0
+      normx=0
+      normy=0
+      normz=0
+      do i=1,nx
+        do j=1,ny
+          if((float(i)-nx/2.0)**2 + (float(j)-ny/2.0)**2<=20**2)then
+            call random_number(rrx)
+            call random_number(rry)
+            w(i,j,1)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
+            phi(i,j,1)=1
+          endif
+        enddo
+      enddo
         !do ll=0,nlinks
         if(dumpYN.eq.0)then
             do k=1,nz
@@ -99,9 +109,7 @@ program recursiveTSLB3D
                       do i=1,nx
                           if(isfluid(i,j,k).eq.1)then
                               !0
-                              if((i-nx/2.)**2 + (j-ny/2.)**2 + (k-nz/2.)**2< 25**2)then
-                                  phi(i,j,k)=1
-                              endif
+                              
                               feq=(-4*rho(i,j,k)*(-2 + 3*u(i,j,k)**2 + 3*v(i,j,k)**2 + 3*w(i,j,k)**2))/27.
                               
                               f(i,j,k,0)=feq 
@@ -314,29 +322,18 @@ program recursiveTSLB3D
     iframe2D=0
     write(6,'(a,i8,a,i8,3f16.4)')'start step : ',0,' frame ',iframe
     
-    !if(lprint)then  
+    if(lprint)then  
         call init_output(nx,ny,nz,1,lvtk)
         call string_char(head1,nheadervtk(1),headervtk(1))
         call string_char(head2,nheadervtk(2),headervtk(2))
-    !endif
+    endif
     
     if(lprint)then
-      !$acc kernels present(rhoprint,velprint,rho,u,v,w) 
-      !$acc loop independent collapse(3)  private(i,j,k)
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            rhoprint(i,j,k)=real(rho(i,j,k),kind=4)
-            velprint(1,i,j,k)=real(u(i,j,k),kind=4)
-            velprint(2,i,j,k)=real(v(i,j,k),kind=4)
-            velprint(3,i,j,k)=real(w(i,j,k),kind=4)
-          enddo
-        enddo
-      enddo
-      !$acc end kernels 
-      !$acc update host(rhoprint,velprint)
+      
+      !!!!!!!$acc update host(rho,u,v,w)
       if(lvtk)then
-        call print_vtk_sync(iframe)
+        !$acc update host(phi)
+        call print_vtk_phionly_sync(iframe)
       else
         call print_raw_sync(iframe)
       endif
@@ -584,22 +581,10 @@ program recursiveTSLB3D
             if(lprint)then
               if(mod(step,stamp).eq.0)then
                 iframe=iframe+1
-                !$acc kernels present(rhoprint,velprint,rho,u,v,w) 
-                !$acc loop independent collapse(3)  private(i,j,k)
-                do k=1,nz
-                  do j=1,ny
-                    do i=1,nx
-                        rhoprint(i,j,k)=real(rho(i,j,k),kind=4)
-                        velprint(1,i,j,k)=real(u(i,j,k),kind=4)
-                        velprint(2,i,j,k)=real(v(i,j,k),kind=4)
-                        velprint(3,i,j,k)=real(w(i,j,k),kind=4)
-                    enddo
-                  enddo
-                enddo
-              !$acc end kernels 
-              !$acc update host(rhoprint,velprint) 
+              !!!!!!!!!!$acc update host(rho,u,v,w) 
               if(lvtk)then
-                call print_vtk_sync(iframe)
+                !$acc update host(phi) 
+                call print_vtk_phionly_sync(iframe)
               else
                 call print_raw_sync(iframe)
               endif
@@ -607,12 +592,10 @@ program recursiveTSLB3D
           endif
     !***********************************Print on files 2D************************
           if(mod(step,stamp2D).eq.0) write(6,'(a,i8)')'step : ',step
-            !if(lprint)then
               if(mod(step,stamp2D).eq.0)then
                 iframe2D=iframe2D+1
                 !$acc update host(rho,phi,u,v,w) 
                 call print_raw_slice_2c_sync(iframe2D)
-            !endif
           endif
     !***********************************dump f************************
           if(mod(step,dumpstep).eq.0) then
@@ -838,7 +821,7 @@ program recursiveTSLB3D
                           g(i,j+1,k,3)=feq+feqs
                           !g4
                           feq=p1g*phi(i,j,k)*(1 - 3*v(i,j,k))
-                          g(i,j-1,k,4)=feq-feqsnv
+                          g(i,j-1,k,4)=feq-feqs
                           !g5
                           feqs=p1g*sharp_c*phi(i,j,k)*(1-phi(i,j,k))*(normz(i,j,k))
                           feq=p1g*phi(i,j,k)*(1 + 3*w(i,j,k))
@@ -852,7 +835,7 @@ program recursiveTSLB3D
           enddo
           !$acc end kernels
     !***********************************boundary conditions ********************************!
-        call bcs_all_bback_2c
+        call bcs_2c_turbulent_jet
       
     enddo 
     !$acc end data

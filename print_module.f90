@@ -809,90 +809,90 @@
    
   end subroutine print_raw_slice_sync
 
-    subroutine print_raw_slice_2c_sync(iframe)
+  subroutine print_raw_slice_2c_sync(iframe)
   
-   implicit none
+        implicit none
    
-   integer, intent(in) :: iframe
-   !rho
-   sevt1 = trim(dir_out) // 'out'//'_'//'phixy'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=745,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(745) phi(:,:,nz/2)
-   close(745)
-   sevt1 = trim(dir_out) // 'out'//'_'//'phixz'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=746,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(746) phi(:,ny/2,:)
-   close(746)
-   sevt1 = trim(dir_out) // 'out'//'_'//'phiyz'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=747,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(747) phi(nx/2,:,:)
-   close(747)
-   
-   !u
-   sevt1 = trim(dir_out) // 'out'//'_'//'uxy'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=845,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(845) u(:,:,nz/2)
-   close(845)
-   sevt1 = trim(dir_out) // 'out'//'_'//'uxz'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=846,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(846) u(:,ny/2,:)
-   close(846)
-     sevt1 = trim(dir_out) // 'out'//'_'//'uyz'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=847,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(847) u(nx/2,:,:)
-   close(847)
+      integer, intent(in) :: iframe
+      !phi
+      sevt1 = trim(dir_out) // 'out'//'_'//'phixy'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=745,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(745) phi(:,:,nz/2)
+      close(745)
+      sevt1 = trim(dir_out) // 'out'//'_'//'phixz'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=746,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(746) phi(:,ny/2,:)
+      close(746)
+      sevt1 = trim(dir_out) // 'out'//'_'//'phiyz'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=747,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(747) phi(nx/2,:,:)
+      close(747)
+      
+      !u
+      sevt1 = trim(dir_out) // 'out'//'_'//'uxy'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=845,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(845) u(:,:,nz/2)
+      close(845)
+      sevt1 = trim(dir_out) // 'out'//'_'//'uxz'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=846,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(846) u(:,ny/2,:)
+      close(846)
+        sevt1 = trim(dir_out) // 'out'//'_'//'uyz'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=847,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(847) u(nx/2,:,:)
+      close(847)
 
-   !v
-   sevt1 = trim(dir_out) // 'out'//'_'//'vxy'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=848,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(848) v(:,:,nz/2)
-   close(848)
-   sevt1 = trim(dir_out) // 'out'//'_'//'vyz'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=849,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(849) v(nx/2,:,:)
-   close(849)
-   sevt1 = trim(dir_out) // 'out'//'_'//'vxz'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=850,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(850) v(:,ny/2,:)
-   close(850)
+      !v
+      sevt1 = trim(dir_out) // 'out'//'_'//'vxy'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=848,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(848) v(:,:,nz/2)
+      close(848)
+      sevt1 = trim(dir_out) // 'out'//'_'//'vyz'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=849,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(849) v(nx/2,:,:)
+      close(849)
+      sevt1 = trim(dir_out) // 'out'//'_'//'vxz'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=850,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(850) v(:,ny/2,:)
+      close(850)
 
-   !w
-   sevt1 = trim(dir_out) // 'out'//'_'//'wxz'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=851,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(851) w(:,ny/2,:)
-   close(851)
-   sevt1 = trim(dir_out) // 'out'//'_'//'wyz'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=852,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(852) w(nx/2,:,:)
-   close(852)
-   sevt1 = trim(dir_out) // 'out'//'_'//'wxy'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.raw'
-   open(unit=853,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-   write(853) w(:,:,nz/2)
-   close(853)
+      !w
+      sevt1 = trim(dir_out) // 'out'//'_'//'wxz'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=851,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(851) w(:,ny/2,:)
+      close(851)
+      sevt1 = trim(dir_out) // 'out'//'_'//'wyz'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=852,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(852) w(nx/2,:,:)
+      close(852)
+      sevt1 = trim(dir_out) // 'out'//'_'//'wxy'// &
+        '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      open(unit=853,file=trim(sevt1), &
+        status='replace',action='write',access='stream',form='unformatted')
+      write(853) w(:,:,nz/2)
+      close(853)
    
   end subroutine print_raw_slice_2c_sync
   
@@ -915,6 +915,18 @@
    close(346)
    
   end subroutine print_vtk_sync
+
+  subroutine print_vtk_phionly_sync(iframe)
+    implicit none
+
+    integer, intent(in) :: iframe
+    sevt1 = trim(dir_out) // 'out'//'_'//'phi'// &
+    '_'//trim(write_fmtnumb(iframe)) // '.vti'
+    open(unit=345,file=trim(sevt1), &
+    status='replace',action='write',access='stream',form='unformatted')
+    write(345)head1,ndatavtk(1),phi,footervtk(1)
+    close(345)
+  endsubroutine 
   
   subroutine print_raw_async(iframe)
   

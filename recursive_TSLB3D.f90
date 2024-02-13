@@ -9,6 +9,7 @@ program recursiveTSLB3D
     implicit none
     logical :: dumpYN
     integer :: dumpstep
+    real*4 :: p1dcssq,p2dcssq,p3dcssq 
     !$if _OPENACC
     integer :: devNum
     integer(acc_device_kind) :: devType
