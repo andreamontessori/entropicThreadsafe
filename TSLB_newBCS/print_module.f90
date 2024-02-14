@@ -636,12 +636,13 @@
     
     
     use openacc
+    use iso_c_binding 
     
     integer :: ngpus,dev_Num
     integer(acc_device_kind) :: dev_Type
   
     integer,intent(in) :: iu 
-    integer :: tot_mem,shared_mem
+    integer(c_size_t) :: tot_mem
     character(len=255) :: myname,myvendor,mydriver
     
     call acc_get_property_string(dev_num,dev_type,acc_property_name,myname)
