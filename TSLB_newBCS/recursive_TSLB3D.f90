@@ -35,7 +35,7 @@ program recursiveTSLB3D
         nx=150
         ny=150
         nz=600
-        nsteps=5000
+        nsteps=1000000
         stamp=2000000
         stamp2D=1000
         dumpstep=100000000
