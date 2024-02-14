@@ -45,6 +45,15 @@ nvfortran:
 	TYPE="seq" \
 	EX=$(EX) BINROOT=$(BINROOT) seq
 
+nvfortran-debug:
+	$(MAKE) CC=nvcc \
+	FC=nvfortran \
+	CFLAGS="-O0 -g -I $(CURDIR) -c" \
+	FFLAGS="-O0 -g -Minfo=all -cpp -acc -gpu=cc75 -DPRC=4 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
+	LDFLAGS="-O0 -g -cpp -acc -gpu=cc75 -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
+	TYPE="seq" \
+	EX=$(EX) BINROOT=$(BINROOT) seq
+
 nvfortran-mpi:
 	$(MAKE) CC=mpicc \
 	FC=mpif90 \
@@ -58,8 +67,8 @@ gnu-debug:
 	$(MAKE) CC=gcc \
 	FC=gfortran \
 	CFLAGS="-O1 -g -I $(CURDIR) -c" \
-	FFLAGS="-O1 -g -fcheck=all -cpp -DPRC=4 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-O1 -g -fcheck=all -cpp -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-O1 -g -fcheck=all -ffree-line-length-none -cpp -DPRC=4 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
+	LDFLAGS="-O1 -g -fcheck=all -ffree-line-length-none -cpp -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
 	TYPE="seq" \
 	EX=$(EX) BINROOT=$(BINROOT) seq
 
@@ -67,8 +76,8 @@ gnu-mpi-debug:
 	$(MAKE) CC=mpicc \
 	FC=mpif90 \
 	CFLAGS="-O1 -g -I $(CURDIR) -c" \
-	FFLAGS="-O1 -g -fcheck=all -cpp -DPRC=4 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-O1 -g -fcheck=all -cpp -DPRC=4 -DMPI -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-O1 -g -fcheck=all -ffree-line-length-none -cpp -DPRC=4 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
+	LDFLAGS="-O1 -g -fcheck=all -ffree-line-length-none -cpp -DPRC=4 -DMPI -DVERBOSE -I $(CURDIR) -o" \
 	TYPE=mpi \
 	EX=$(EXP) BINROOT=$(BINROOT) mpi	
 
@@ -76,8 +85,8 @@ gnu-real:
 	$(MAKE) CC=gcc \
 	FC=gfortran \
 	CFLAGS="-Ofast -I $(CURDIR) -c" \
-	FFLAGS="-Ofast -cpp -DPRC=4 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-Ofast -cpp -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=4 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
+	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
 	TYPE="seq" \
 	EX=$(EX) BINROOT=$(BINROOT) seq
 
@@ -85,8 +94,8 @@ gnu-mpi-real:
 	$(MAKE) CC=mpicc \
 	FC=mpif90 \
 	CFLAGS="-Ofast -I $(CURDIR) -c" \
-	FFLAGS="-Ofast -cpp -DPRC=4 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-Ofast -cpp -DMPI -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=4 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
+	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DMPI -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
 	TYPE=mpi \
 	EX=$(EXP) BINROOT=$(BINROOT) mpi
 
@@ -94,8 +103,8 @@ gnu-double:
 	$(MAKE) CC=gcc \
 	FC=gfortran \
 	CFLAGS="-Ofast -I $(CURDIR) -c" \
-	FFLAGS="-Ofast -cpp -DPRC=8 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-Ofast -cpp -DPRC=8 -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=8 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
+	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=8 -DVERBOSE -I $(CURDIR) -o" \
 	TYPE="seq" \
 	EX=$(EX) BINROOT=$(BINROOT) seq
 
@@ -103,21 +112,21 @@ gnu-mpi-double:
 	$(MAKE) CC=mpicc \
 	FC=mpif90 \
 	CFLAGS="-Ofast -I $(CURDIR) -c" \
-	FFLAGS="-Ofast -cpp -DPRC=8 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-Ofast -cpp -DMPI -DPRC=8 -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=8 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
+	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DMPI -DPRC=8 -DVERBOSE -I $(CURDIR) -o" \
 	TYPE=mpi \
 	EX=$(EXP) BINROOT=$(BINROOT) mpi
 
 seq:vars_single_3D_module.o \
-	boundary_cds_3D_module.o print_module.o recursive_TSLB3D.o
+	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
 	$(FC) $(LDFLAGS) $(EX) vars_single_3D_module.o \
-	boundary_cds_3D_module.o print_module.o recursive_TSLB3D.o
+	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
 #	mv $(EX) $(EXE)
 
 mpi:vars_single_3D_module.o \
-	boundary_cds_3D_module.o print_module.o recursive_TSLB3D.o
+	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
 	$(FC) $(LDFLAGS) $(EX) vars_single_3D_module.o \
-	boundary_cds_3D_module.o print_module.o recursive_TSLB3D.o
+	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
 #	mv $(EXP) $(EXEP)
 
 get_mem.o:get_mem.c
@@ -137,6 +146,9 @@ print_module.o:print_module.f90
 
 recursive_TSLB3D.o:recursive_TSLB3D.f90
 	$(FC) $(FFLAGS) recursive_TSLB3D.f90
+
+recursive_TSbcs_TSLB3.o:recursive_TSbcs_TSLB3.f90
+	$(FC) $(FFLAGS) recursive_TSbcs_TSLB3.f90
 
 clean-all:
 	rm -rf *.mod *.o *.x 

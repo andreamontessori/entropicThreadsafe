@@ -1287,124 +1287,580 @@ module bcs3D
         !periodic along x
                 ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
             !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
-            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
+            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1, -1, -1,  1, -1,  1, -1,  1/)
             !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
-        !$acc kernels
-        !$acc loop independent
-          do j=2,ny-1
-            !$acc loop independent
-            do i=2,nx-1
-              oi=i
-              oj=j
-              k=nz+1
-              ok=k
-              if(periodic(1))oi=mod(oi+nx-1,nx)+1
-              if(periodic(2))oj=mod(oj+ny-1,ny)+1
-              if(periodic(3))ok=mod(ok+nz-1,nz)+1
-              !k=k-1
-              f(oi,oj,ok,5)=f(i,j,k,5)
-              f(oi,oj,ok,11)=f(i,j,k,11)
-              f(oi,oj,ok,14)=f(i,j,k,14)
-              f(oi,oj,ok,15)=f(i,j,k,15)
-              f(oi,oj,ok,17)=f(i,j,k,17)
-              f(oi,oj,ok,19)=f(i,j,k,19)
-              f(oi,oj,ok,21)=f(i,j,k,21)
-              f(oi,oj,ok,23)=f(i,j,k,23)
-              f(oi,oj,ok,26)=f(i,j,k,26)
-              k=0
-              ok=k
-              if(periodic(3)) ok=mod(ok+nz-1,nz)+1
-              !k=k+1
-              f(oi,oj,ok,6)=f(i,j,k,6)
-              f(oi,oj,ok,12)=f(i,j,k,12)
-              f(oi,oj,ok,13)=f(i,j,k,13)
-              f(oi,oj,ok,16)=f(i,j,k,16)
-              f(oi,oj,ok,18)=f(i,j,k,18)
-              f(oi,oj,ok,20)=f(i,j,k,20)
-              f(oi,oj,ok,22)=f(i,j,k,22)
-              f(oi,oj,ok,24)=f(i,j,k,24)
-              f(oi,oj,ok,25)=f(i,j,k,25)
-            enddo
-          enddo
-          !$acc end kernels
-         
-        !   !along y
-        !$acc kernels
-        !$acc loop independent
-          do k=2,nz-1
-            !$acc loop independent
-            do i=2,nx-1
-              oi=i
-              j=ny+1
-              oj=j
-              ok=k
-              if(periodic(1))oi=mod(oi+nx-1,nx)+1
-              if(periodic(2))oj=mod(oj+ny-1,ny)+1
-              if(periodic(3))ok=mod(ok+nz-1,nz)+1
-              f(oi,oj,ok,3)=f(i,j,k,3)
-              f(oi,oj,ok,7)=f(i,j,k,7)
-              f(oi,oj,ok,10)=f(i,j,k,10)
-              f(oi,oj,ok,11)=f(i,j,k,11)
-              f(oi,oj,ok,13)=f(i,j,k,13)
-              f(oi,oj,ok,19)=f(i,j,k,19)
-              f(oi,oj,ok,22)=f(i,j,k,22)
-              f(oi,oj,ok,24)=f(i,j,k,24)
-              f(oi,oj,ok,26)=f(i,j,k,26)
-              j=0
-              oj=j
-              if(periodic(2))oj=mod(oj+ny-1,ny)+1
-              f(oi,oj,ok,4)=f(i,j,k,4)
-              f(oi,oj,ok,8)=f(i,j,k,8)
-              f(oi,oj,ok,9)=f(i,j,k,9)
-              f(oi,oj,ok,12)=f(i,j,k,12)
-              f(oi,oj,ok,14)=f(i,j,k,14)
-              f(oi,oj,ok,20)=f(i,j,k,20)
-              f(oi,oj,ok,21)=f(i,j,k,21)
-              f(oi,oj,ok,23)=f(i,j,k,23)
-              f(oi,oj,ok,25)=f(i,j,k,25)
-            enddo
-          enddo
-          !$acc end kernels
-         
-          !along x
-          !$acc kernels
-        !$acc loop independent
-          do k=2,nz-1
-            !$acc loop independent
-            do j=2,ny-1
-              i=nx+1
-              oi=i
-              oj=j
-              ok=k
-              if(periodic(1))oi=mod(oi+nx-1,nx)+1
-              if(periodic(2))oj=mod(oj+ny-1,ny)+1
-              if(periodic(3))ok=mod(ok+nz-1,nz)+1
+       
+       
+        !dir l   1 disp    1   0   0
+		!$acc kernels
+		!$acc loop independent
+		do k=1,nz
+		  !$acc loop independent
+		  do j=1,ny
+		    !$acc loop independent
+		    do i=nx+1,nx+1
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,1)=f(i,j,k,1)
+		      f(oi,oj,ok,7)=f(i,j,k,7)
+		      f(oi,oj,ok,9)=f(i,j,k,9)
+		      f(oi,oj,ok,15)=f(i,j,k,15)
+		      f(oi,oj,ok,18)=f(i,j,k,18)
+		      f(oi,oj,ok,19)=f(i,j,k,19)
+		      f(oi,oj,ok,21)=f(i,j,k,21)
+		      f(oi,oj,ok,24)=f(i,j,k,24)
+		      f(oi,oj,ok,25)=f(i,j,k,25)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l   2 disp   -1   0   0
+		!$acc kernels
+		!$acc loop independent
+		do k=1,nz
+		  !$acc loop independent
+		  do j=1,ny
+		    !$acc loop independent
+		    do i=0,0
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,2)=f(i,j,k,2)
+		      f(oi,oj,ok,8)=f(i,j,k,8)
+		      f(oi,oj,ok,10)=f(i,j,k,10)
+		      f(oi,oj,ok,16)=f(i,j,k,16)
+		      f(oi,oj,ok,17)=f(i,j,k,17)
+		      f(oi,oj,ok,20)=f(i,j,k,20)
+		      f(oi,oj,ok,22)=f(i,j,k,22)
+		      f(oi,oj,ok,23)=f(i,j,k,23)
+		      f(oi,oj,ok,26)=f(i,j,k,26)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l   3 disp    0   1   0
+		!$acc kernels
+		!$acc loop independent
+		do k=1,nz
+		  !$acc loop independent
+		  do j=ny+1,ny+1
+		    !$acc loop independent
+		    do i=1,nx
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,3)=f(i,j,k,3)
+		      f(oi,oj,ok,7)=f(i,j,k,7)
+		      f(oi,oj,ok,10)=f(i,j,k,10)
+		      f(oi,oj,ok,11)=f(i,j,k,11)
+		      f(oi,oj,ok,13)=f(i,j,k,13)
+		      f(oi,oj,ok,19)=f(i,j,k,19)
+		      f(oi,oj,ok,22)=f(i,j,k,22)
+		      f(oi,oj,ok,24)=f(i,j,k,24)
+		      f(oi,oj,ok,26)=f(i,j,k,26)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l   4 disp    0  -1   0
+		!$acc kernels
+		!$acc loop independent
+		do k=1,nz
+		  !$acc loop independent
+		  do j=0,0
+		    !$acc loop independent
+		    do i=1,nx
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,4)=f(i,j,k,4)
+		      f(oi,oj,ok,8)=f(i,j,k,8)
+		      f(oi,oj,ok,9)=f(i,j,k,9)
+		      f(oi,oj,ok,12)=f(i,j,k,12)
+		      f(oi,oj,ok,14)=f(i,j,k,14)
+		      f(oi,oj,ok,20)=f(i,j,k,20)
+		      f(oi,oj,ok,21)=f(i,j,k,21)
+		      f(oi,oj,ok,23)=f(i,j,k,23)
+		      f(oi,oj,ok,25)=f(i,j,k,25)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l   5 disp    0   0   1
+		!$acc kernels
+		!$acc loop independent
+		do k=nz+1,nz+1
+		  !$acc loop independent
+		  do j=1,ny
+		    !$acc loop independent
+		    do i=1,nx
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,5)=f(i,j,k,5)
+		      f(oi,oj,ok,11)=f(i,j,k,11)
+		      f(oi,oj,ok,14)=f(i,j,k,14)
+		      f(oi,oj,ok,15)=f(i,j,k,15)
+		      f(oi,oj,ok,17)=f(i,j,k,17)
+		      f(oi,oj,ok,19)=f(i,j,k,19)
+		      f(oi,oj,ok,21)=f(i,j,k,21)
+		      f(oi,oj,ok,23)=f(i,j,k,23)
+		      f(oi,oj,ok,26)=f(i,j,k,26)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l   6 disp    0   0  -1
+		!$acc kernels
+		!$acc loop independent
+		do k=0,0
+		  !$acc loop independent
+		  do j=1,ny
+		    !$acc loop independent
+		    do i=1,nx
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,6)=f(i,j,k,6)
+		      f(oi,oj,ok,12)=f(i,j,k,12)
+		      f(oi,oj,ok,13)=f(i,j,k,13)
+		      f(oi,oj,ok,16)=f(i,j,k,16)
+		      f(oi,oj,ok,18)=f(i,j,k,18)
+		      f(oi,oj,ok,20)=f(i,j,k,20)
+		      f(oi,oj,ok,22)=f(i,j,k,22)
+		      f(oi,oj,ok,24)=f(i,j,k,24)
+		      f(oi,oj,ok,25)=f(i,j,k,25)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l   7 disp    1   1   0
+		!$acc kernels
+		!$acc loop independent
+		do k=1,nz
+		  !$acc loop independent
+		  do j=ny+1,ny+1
+		    !$acc loop independent
+		    do i=nx+1,nx+1
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,7)=f(i,j,k,7)
+		      f(oi,oj,ok,19)=f(i,j,k,19)
+		      f(oi,oj,ok,24)=f(i,j,k,24)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l   8 disp   -1  -1   0
+		!$acc kernels
+		!$acc loop independent
+		do k=1,nz
+		  !$acc loop independent
+		  do j=0,0
+		    !$acc loop independent
+		    do i=0,0
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,8)=f(i,j,k,8)
+		      f(oi,oj,ok,20)=f(i,j,k,20)
+		      f(oi,oj,ok,23)=f(i,j,k,23)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l   9 disp    1  -1   0
+		!$acc kernels
+		!$acc loop independent
+		do k=1,nz
+		  !$acc loop independent
+		  do j=0,0
+		    !$acc loop independent
+		    do i=nx+1,nx+1
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,9)=f(i,j,k,9)
+		      f(oi,oj,ok,21)=f(i,j,k,21)
+		      f(oi,oj,ok,25)=f(i,j,k,25)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  10 disp   -1   1   0
+		!$acc kernels
+		!$acc loop independent
+		do k=1,nz
+		  !$acc loop independent
+		  do j=ny+1,ny+1
+		    !$acc loop independent
+		    do i=0,0
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,10)=f(i,j,k,10)
+		      f(oi,oj,ok,22)=f(i,j,k,22)
+		      f(oi,oj,ok,26)=f(i,j,k,26)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  11 disp    0   1   1
+		!$acc kernels
+		!$acc loop independent
+		do k=nz+1,nz+1
+		  !$acc loop independent
+		  do j=ny+1,ny+1
+		    !$acc loop independent
+		    do i=1,nx
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,11)=f(i,j,k,11)
+		      f(oi,oj,ok,19)=f(i,j,k,19)
+		      f(oi,oj,ok,26)=f(i,j,k,26)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  12 disp    0  -1  -1
+		!$acc kernels
+		!$acc loop independent
+		do k=0,0
+		  !$acc loop independent
+		  do j=0,0
+		    !$acc loop independent
+		    do i=1,nx
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,12)=f(i,j,k,12)
+		      f(oi,oj,ok,20)=f(i,j,k,20)
+		      f(oi,oj,ok,25)=f(i,j,k,25)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  13 disp    0   1  -1
+		!$acc kernels
+		!$acc loop independent
+		do k=0,0
+		  !$acc loop independent
+		  do j=ny+1,ny+1
+		    !$acc loop independent
+		    do i=1,nx
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,13)=f(i,j,k,13)
+		      f(oi,oj,ok,22)=f(i,j,k,22)
+		      f(oi,oj,ok,24)=f(i,j,k,24)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  14 disp    0  -1   1
+		!$acc kernels
+		!$acc loop independent
+		do k=nz+1,nz+1
+		  !$acc loop independent
+		  do j=0,0
+		    !$acc loop independent
+		    do i=1,nx
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,14)=f(i,j,k,14)
+		      f(oi,oj,ok,21)=f(i,j,k,21)
+		      f(oi,oj,ok,23)=f(i,j,k,23)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  15 disp    1   0   1
+		!$acc kernels
+		!$acc loop independent
+		do k=nz+1,nz+1
+		  !$acc loop independent
+		  do j=1,ny
+		    !$acc loop independent
+		    do i=nx+1,nx+1
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,15)=f(i,j,k,15)
+		      f(oi,oj,ok,19)=f(i,j,k,19)
+		      f(oi,oj,ok,21)=f(i,j,k,21)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  16 disp   -1   0  -1
+		!$acc kernels
+		!$acc loop independent
+		do k=0,0
+		  !$acc loop independent
+		  do j=1,ny
+		    !$acc loop independent
+		    do i=0,0
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,16)=f(i,j,k,16)
+		      f(oi,oj,ok,20)=f(i,j,k,20)
+		      f(oi,oj,ok,22)=f(i,j,k,22)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  17 disp   -1   0   1
+		!$acc kernels
+		!$acc loop independent
+		do k=nz+1,nz+1
+		  !$acc loop independent
+		  do j=1,ny
+		    !$acc loop independent
+		    do i=0,0
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,17)=f(i,j,k,17)
+		      f(oi,oj,ok,23)=f(i,j,k,23)
+		      f(oi,oj,ok,26)=f(i,j,k,26)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  18 disp    1   0  -1
+		!$acc kernels
+		!$acc loop independent
+		do k=0,0
+		  !$acc loop independent
+		  do j=1,ny
+		    !$acc loop independent
+		    do i=nx+1,nx+1
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,18)=f(i,j,k,18)
+		      f(oi,oj,ok,24)=f(i,j,k,24)
+		      f(oi,oj,ok,25)=f(i,j,k,25)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  19 disp    1   1   1
+		!$acc kernels
+		!$acc loop independent
+		do k=nz+1,nz+1
+		  !$acc loop independent
+		  do j=ny+1,ny+1
+		    !$acc loop independent
+		    do i=nx+1,nx+1
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,19)=f(i,j,k,19)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  20 disp   -1  -1  -1
+		!$acc kernels
+		!$acc loop independent
+		do k=0,0
+		  !$acc loop independent
+		  do j=0,0
+		    !$acc loop independent
+		    do i=0,0
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,20)=f(i,j,k,20)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  21 disp    1  -1   1
+		!$acc kernels
+		!$acc loop independent
+		do k=nz+1,nz+1
+		  !$acc loop independent
+		  do j=0,0
+		    !$acc loop independent
+		    do i=nx+1,nx+1
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,21)=f(i,j,k,21)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  22 disp   -1   1  -1
+		!$acc kernels
+		!$acc loop independent
+		do k=0,0
+		  !$acc loop independent
+		  do j=ny+1,ny+1
+		    !$acc loop independent
+		    do i=0,0
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,22)=f(i,j,k,22)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  23 disp   -1  -1   1
+		!$acc kernels
+		!$acc loop independent
+		do k=nz+1,nz+1
+		  !$acc loop independent
+		  do j=0,0
+		    !$acc loop independent
+		    do i=0,0
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,23)=f(i,j,k,23)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  24 disp    1   1  -1
+		!$acc kernels
+		!$acc loop independent
+		do k=0,0
+		  !$acc loop independent
+		  do j=ny+1,ny+1
+		    !$acc loop independent
+		    do i=nx+1,nx+1
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,24)=f(i,j,k,24)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  25 disp    1  -1  -1
+		!$acc kernels
+		!$acc loop independent
+		do k=0,0
+		  !$acc loop independent
+		  do j=0,0
+		    !$acc loop independent
+		    do i=nx+1,nx+1
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,25)=f(i,j,k,25)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		!dir l  26 disp   -1   1   1
+		!$acc kernels
+		!$acc loop independent
+		do k=nz+1,nz+1
+		  !$acc loop independent
+		  do j=ny+1,ny+1
+		    !$acc loop independent
+		    do i=0,0
+		      oi=i
+		      oj=j
+		      ok=k
+		      if(periodic(1))oi=mod(oi+nx-1,nx)+1
+		      if(periodic(2))oj=mod(oj+ny-1,ny)+1
+		      if(periodic(3))ok=mod(ok+nz-1,nz)+1
+		      f(oi,oj,ok,26)=f(i,j,k,26)
+		    enddo
+		  enddo
+		enddo
+		!$acc end kernels
+		
 
-              f(oi,oj,ok,1)=f(i,j,k,1)
-              f(oi,oj,ok,7)=f(i,j,k,7)
-              f(oi,oj,ok,9)=f(i,j,k,9)
-              f(oi,oj,ok,15)=f(i,j,k,15)
-              f(oi,oj,ok,18)=f(i,j,k,18)
-              f(oi,oj,ok,19)=f(i,j,k,19)
-              f(oi,oj,ok,21)=f(i,j,k,21)
-              f(oi,oj,ok,24)=f(i,j,k,24)
-              f(oi,oj,ok,25)=f(i,j,k,25)
-             
-              i=0
-              oi=i
-              if(periodic(1))oi=mod(oi+nx-1,nx)+1
-              f(oi,oj,ok,2)=f(i,j,k,2)
-              f(oi,oj,ok,8)=f(i,j,k,8)
-              f(oi,oj,ok,10)=f(i,j,k,10)
-              f(oi,oj,ok,16)=f(i,j,k,16)
-              f(oi,oj,ok,17)=f(i,j,k,17)
-              f(oi,oj,ok,20)=f(i,j,k,20)
-              f(oi,oj,ok,22)=f(i,j,k,22)
-              f(oi,oj,ok,23)=f(i,j,k,23)
-              f(oi,oj,ok,26)=f(i,j,k,26)
-            enddo
-          enddo
-          !$acc end kernels        
+		
+        
 
     endsubroutine
 

@@ -35,9 +35,9 @@ program recursiveTSLB3D
         nx=150
         ny=150
         nz=600
-        nsteps=1000000
-        stamp=2000000
-        stamp2D=1000
+        nsteps=10000
+        stamp=1000
+        stamp2D=100000000
         dumpstep=100000000
         fx=0.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)

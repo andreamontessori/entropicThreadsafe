@@ -1,25 +1,25 @@
 program recursiveTSLB3D
-    !$if _OPENACC
+#ifdef _OPENACC
     use openacc
-    !$endif
+#endif
     use prints
     use vars
     use bcs3D
     
     implicit none
-    logical :: dumpYN
+    integer :: dumpYN
     integer :: dumpstep
-    real*4 :: p1dcssq,p2dcssq,p3dcssq 
-    !$if _OPENACC
+
+#ifdef _OPENACC
     integer :: devNum
     integer(acc_device_kind) :: devType
     devType = acc_get_device_type()
     devNum=acc_get_device_num(devType)
-    !$endif
+#endif
 
-    nlinks=26 !pari!
+   
     tau=0.5004_db
-    cssq=1.0_db/3.0_db
+    
     visc_LB=cssq*(tau-0.5_db)
     one_ov_nu=1.0_db/visc_LB
     dumpYN=0
@@ -36,7 +36,7 @@ program recursiveTSLB3D
         ny=150
         nz=600
         nsteps=10000
-        stamp=10000
+        stamp=1000
         stamp2D=1000
         dumpstep=100000000
         fx=0.0_db*10.0**(-7)
@@ -66,20 +66,13 @@ program recursiveTSLB3D
         !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0/)
         !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1/)
 
-        p0=(8.0_db/27.0_db)
-        p1=(2.0_db/27.0_db)
-        p2=(1.0_db/54.0_db)
-        p3=(1.0_db/216.0_db)
-        p1dcssq=p1/cssq
-        p2dcssq=p2/cssq
-        p3dcssq=p3/cssq
         omega=1.0_db/tau
     !*****************************************geometry************************
         isfluid=1
-        isfluid(1,:,:)=0 !left
-        isfluid(nx,:,:)=0 !right
-        isfluid(:,1,:)=0 !front 
-        isfluid(:,ny,:)=0 !rear
+!        isfluid(1,:,:)=0 !left
+!        isfluid(nx,:,:)=0 !right
+!        isfluid(:,1,:)=0 !front 
+!        isfluid(:,ny,:)=0 !rear
         isfluid(:,:,1)=0 !bottom
         isfluid(:,:,nz)=0 !top
     !*************************************initial conditions ************************    
@@ -96,7 +89,7 @@ program recursiveTSLB3D
           enddo
         enddo
         rho=1.0_db  !tot dens
-        ! rho(nx/2,ny/2,nz-5)=1.1
+        !rho(nx/2,ny/2,nz-10)=1.2
         !do ll=0,nlinks
         if(dumpYN.eq.0)then
             do k=1,nz
@@ -279,11 +272,11 @@ program recursiveTSLB3D
         write(6,*) 'max fx',huge(fy)
         write(6,*) 'max fx',huge(fz)
         write(6,*) '*******************************************'
-    !$acc data copy(f,isfluid,p0,p1,p2,p3,&
+    !$acc data copy(f,isfluid,&
              !$acc& pxx,pyy,pzz,pxy,pxz,pyz,rho,u,v,w,rhoprint,velprint)
-    !$if _OPENACC        
+#ifdef _OPENACC      
         call printDeviceProperties(ngpus,devNum,devType,6)
-    !$endif
+#endif
     iframe=0
     iframe2D=0
     write(6,'(a,i8,a,i8,3f16.4)')'start step : ',0,' frame ',iframe
@@ -516,8 +509,8 @@ program recursiveTSLB3D
           enddo
           !$acc end kernels
           ! thread-safe boundary condition setup
-          !call bcs_TSLB_only_z_turbojet
-          call bcs_TSLB_turbojet
+          call bcs_TSLB_only_z_turbojet
+          !call bcs_TSLB_turbojet
           !
         !***********************************Print on files 3D************************
           if(mod(step,stamp).eq.0)write(6,'(a,i8)')'step : ',step
@@ -716,7 +709,7 @@ program recursiveTSLB3D
           enddo
           !$acc end kernels
         !***********************************pbcs boundary conditions ********************************!
-        !call pbcs      
+        call pbcs      
     enddo 
     !$acc end data
     call cpu_time(ts2)

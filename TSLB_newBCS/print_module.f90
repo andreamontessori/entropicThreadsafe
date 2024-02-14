@@ -291,11 +291,11 @@
       makedirectory=repeat(' ',255)
       makedirectory = 'output'//delimiter
       dir_out=trim(makedirectory)
-      #ifdef _INTEL
+#ifdef _INTEL
         inquire(directory=trim(makedirectory),exist=lexist)
-      #else
+#else
         inquire(file=trim(makedirectory),exist=lexist)
-      #endif
+#endif
       
       if(.not. lexist)then
         makedirectory=repeat(' ',255)
@@ -554,35 +554,36 @@
       !     last modification July 2018
       !     
       !***********************************************************************  
-      #ifdef _OPENACC
+#ifdef _OPENACC
         use openacc
         use accel_lib
-      #elif defined _CUDA  
+        use iso_c_binding 
+#elif defined _CUDA  
         use cudafor
-      #endif
+#endif
         
         implicit none
         
         real(kind=db), intent(out) :: fout,fout2
         real(kind=db) :: myd(2),myd2(2)
         integer :: istat
-      #ifdef _OPENACC  
-        integer :: myfree, total
-      #elif defined _CUDA  
+#ifdef _OPENACC  
+        integer(c_size_t) :: myfree, total
+#elif defined _CUDA  
         integer(kind=cuda_count_kind) :: myfree, total
-      #else
+#else
         integer :: myfree, total
-      #endif  
+#endif  
         
-      #ifdef _OPENACC
+#ifdef _OPENACC
         myfree=acc_get_free_memory()
         total=acc_get_memory() 
-      #elif defined _CUDA
+#elif defined _CUDA
         istat = cudaMemGetInfo( myfree, total )
-      #else
+#else
         myfree=0
         total=0
-      #endif  
+#endif  
         fout = real(total-myfree,kind=4)/(1024.0**3.0)
         fout2 = real(total,kind=4)/(1024.0**3.0)
         
@@ -631,7 +632,7 @@
   
     end subroutine print_memory_registration_gpu
     !******************************************************************************************************!
-  !$if _OPENACC  
+#ifdef _OPENACC
     subroutine printDeviceProperties(ngpus,dev_Num,dev_Type,iu)
     
     
@@ -676,7 +677,7 @@
     return
     
     end subroutine printDeviceProperties
-  !$endif  
+#endif  
   subroutine print_raw_sync(iframe)
   
    implicit none
