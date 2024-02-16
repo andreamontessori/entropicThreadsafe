@@ -1235,16 +1235,28 @@ module bcs3D
         implicit none 
 
         if(mod(step,10).eq.0)then
-			!$acc update host(w(nx/2-20:nx/2+20,ny/2-20:ny/2+20,1))
+            !devo fare update di step che mi serve come seed
+            !$acc update device(step)
+            !$acc kernels present(w) 
+            !$acc loop independent collapse(2)  private(i,j)
+!			!$acc update host(w(nx/2-20:nx/2+20,ny/2-20:ny/2+20,1))
 			do i=nx/2-20,nx/2+20
 				do j=ny/2-20,ny/2+20
 					if((float(i)-nx/2.0)**2 + (float(j)-ny/2.0)**2<=10**2)then
-						call random_number(rrx)
+                        !call random_number(rrx)
+                        
+                        !è uno pseudo generatore che da un numero randomico partendo da 4 integer come seed
+                        !devi fare in modo che ogni lattice point ad ogni time step abbia seed diversi
+                        !quindi uso come seed la posizione i j k e il timestep come quarto seed 
+                        !il fatto che tutti i seed siano diversi è perchè può essere chiamata da più threads contemporaneamente
+                        !invece se tu hai un unico seed lo devi mettere in save per tutti i threads e poi dipende da chi chiama prima (dipende dall'ordine di chiamata)
+					    rrx=rand_noseeded(i,j,1,step)		
 						w(i,j,1)=uwall + 0.004*sqrt(-2.0*log(rrx))*cos(2*3.1415926535897932384626433832795028841971*rrx)
 					endif
 				enddo
 			enddo
-		   !$acc update device(w(nx/2-20:nx/2+20,ny/2-20:ny/2+20,1))
+           !$acc end kernels
+!		   !$acc update device(w(nx/2-20:nx/2+20,ny/2-20:ny/2+20,1))
 		endif
 
         !$acc kernels

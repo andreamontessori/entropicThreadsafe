@@ -82,8 +82,15 @@ program recursiveTSLB3D
         do i=1,nx
           do j=1,ny
             if((float(i)-nx/2.0)**2 + (float(j)-ny/2.0)**2<=10**2)then
-              call random_number(rrx)
-              call random_number(rry)
+              !call random_number(rrx)
+              !call random_number(rry)
+              !è uno pseudo generatore che da un numero randomico partendo da 4 integer come seed
+              !devi fare in modo che ogni lattice point ad ogni time step abbia seed diversi
+              !quindi uso come seed la posizione i j k e il timestep come quarto seed lo metto ad cazzum
+              !il fatto che tutti i seed siano diversi è perchè può essere chiamata da più threads contemporaneamente
+              !invece se tu hai un unico seed lo devi mettere in save per tutti i threads e poi dipende da chi chiama prima (dipende dall'ordine di chiamata)
+              rrx=rand_noseeded(i,j,1,524)
+              rry=rand_noseeded(i,j,1,1732)
               w(i,j,1)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
             endif
           enddo
@@ -272,7 +279,7 @@ program recursiveTSLB3D
         write(6,*) 'max fx',huge(fy)
         write(6,*) 'max fx',huge(fz)
         write(6,*) '*******************************************'
-    !$acc data copy(f,isfluid,&
+    !$acc data copy(step,f,isfluid,&
              !$acc& pxx,pyy,pzz,pxy,pxz,pyz,rho,u,v,w,rhoprint,velprint)
 #ifdef _OPENACC      
         call printDeviceProperties(ngpus,devNum,devType,6)

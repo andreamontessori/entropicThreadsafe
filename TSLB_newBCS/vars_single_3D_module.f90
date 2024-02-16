@@ -72,5 +72,97 @@ module vars
     character(len=mxln) :: extentvtk
     character(len=mxln) :: sevt1,sevt2
     character(len=1), allocatable, dimension(:) :: head1,head2
+    
+  contains
+  
+  pure function gauss_noseeded(i,j,k,l)
+    !$acc routine gang
+    !questo sopra serve per dire ad openacc di fare una copia sul device e gang significa che può essere chiamata da più threads/vector/worker/gangbang indipendentemente ad cazzum
+    implicit none
+    integer, intent(in) :: i,j,k,l
+    integer :: kk
+    real(kind=db) :: gauss_noseeded
+    real(kind=db) :: dtemp1,dtemp2
+    real(kind=db), parameter :: mylimit=real(1.d-30,kind=db)
+    real(kind=db), parameter :: FIFTY = real(50.d0,kind=db)
+    real(kind=db), parameter :: ONE = real(1.d0,kind=db)
+    real(kind=db), parameter :: TWO = real(2.d0,kind=db)
+    real(kind=db), parameter :: Pi = real(3.1415926535897932384626433832795028841971d0,kind=db)
+    
+    dtemp1=rand_noseeded(i,j,k,l)
+    kk=nint(dtemp1*FIFTY)
+    dtemp2=rand_noseeded(i,j,k,l+kk)
+    
+    dtemp1=dtemp1*(ONE-mylimit)+mylimit
+    
+  ! Box-Muller transformation
+    gauss_noseeded=sqrt(- TWO *log(dtemp1))*cos(TWO*pi*dtemp2)
+   end function gauss_noseeded
+  
+  pure function rand_noseeded(i,j,k,l)
+    !$acc routine gang
+    !questo sopra serve per dire ad openacc di fare una copia sul device e gang significa che può essere chiamata da più threads/vector/worker/gangbang indipendentemente ad cazzum
+    implicit none
+    integer, intent(in) :: i,j,k,l
+    integer :: isub,jsub,ksub,lsub,msub
+    integer ::ii,jj
+    real(4) :: s,t,u33,u97,csub,uni
+    real(kind=db) :: rand_noseeded
+    
+    real(4), parameter :: c =  362436.0/16777216.0
+    real(4), parameter :: cd= 7654321.0/16777216.0
+    real(4), parameter :: cm=16777213.0/16777216.0
+  
+    
+  ! initial values of i,j,k must be in range 1 to 178 (not all 1)
+  ! initial value of l must be in range 0 to 168.      
+    isub=mod(i,178)
+    isub=isub+1
+    
+    jsub=mod(j,178)
+    jsub=jsub+1
+    
+    ksub=mod(k,178)
+    ksub=ksub+1
+    
+    lsub=mod(l,169)
+    
+  ! initialization on fly  
+    ii=97
+    s=0.0
+    t=0.5
+    do jj=1,24
+      msub=mod(mod(isub*jsub,179)*ksub,179)
+      isub=jsub
+      jsub=ksub
+      ksub=msub
+      lsub=mod(53*lsub+1,169)
+      if(mod(lsub*msub,64).ge.32)s=s+t
+      t=0.5*t
+    enddo
+    u97=s
+    
+    ii=33
+    s=0.0
+    t=0.5
+    do jj=1,24
+      msub=mod(mod(isub*jsub,179)*ksub,179)
+      isub=jsub
+      jsub=ksub
+      ksub=msub
+      lsub=mod(53*lsub+1,169)
+      if(mod(lsub*msub,64).ge.32)s=s+t
+      t=0.5*t
+    enddo
+    u33=s
+    uni=u97-u33
+    if (uni.lt.0.0) uni = uni + 1.0
+    csub = c-cd
+    if (csub.lt.0.0) csub = csub + cm
+    uni = uni-csub
+    if (uni.lt.0.0) uni = uni+1.0
+    rand_noseeded = real(uni,kind=db)
+   end function rand_noseeded
+
 
 endmodule
