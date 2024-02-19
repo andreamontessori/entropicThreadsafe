@@ -21,7 +21,7 @@ program recursiveTSLB3D
     
     implicit none
     integer :: dumpYN
-    integer :: dumpstep
+    integer :: dumpstep,subchords(3)
     logical :: mydiagnostic
     integer :: tdiagnostic
     real(kind=db) :: smemory,sram
@@ -60,21 +60,19 @@ program recursiveTSLB3D
         fz=0.0_db*10.0**(-5)
 		    uwall=0.05
         lprint=.true.
-        lvtk=.true.
-        lraw=.false.
+        lvtk=.false.
+        lraw=.true.
         lasync=.false.
         lpbc=.true.
         
         proc_x=1
-        proc_y=1
+        proc_y=2
         proc_z=2
-        pbc_x=1
+        pbc_x=1  !(0=false 1=true)
         pbc_y=1
         pbc_z=0
 
-        !periodic(1)=.true.
-        !periodic(2)=.true.
-        !periodic(3)=.false.
+
         
         !!!!!!! START MPI!!!!!!!!!!!!!!!!!!!
         call start_mpi
@@ -136,24 +134,36 @@ program recursiveTSLB3D
         u=0.0_db
         v=0.0_db
         w=0.0_db
-        do j=1,ny
-          gj=ny*coords(2)+j
-          do i=1,nx
-            gi=nx*coords(1)+i
-            if((float(gi)-lx/2.0)**2 + (float(gj)-ly/2.0)**2<=10**2)then
-              !call random_number(rrx)
-              !call random_number(rry)
-              !è uno pseudo generatore che da un numero randomico partendo da 4 integer come seed
-              !devi fare in modo che ogni lattice point ad ogni time step abbia seed diversi
-              !quindi uso come seed la posizione i j k e il timestep come quarto seed lo metto ad cazzum
-              !il fatto che tutti i seed siano diversi è perchè può essere chiamata da più threads contemporaneamente
-              !invece se tu hai un unico seed lo devi mettere in save per tutti i threads e poi dipende da chi chiama prima (dipende dall'ordine di chiamata)
-              rrx=rand_noseeded(gi,gj,1,524)
-              rry=rand_noseeded(gi,gj,1,1732)
-              w(i,j,1)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
-            endif
+        !devo trovare quali processi hanno in carico i nodi lungo il piano gk=1
+        gk=1
+        !subchords(1)=(oi-1)/nx
+        !subchords(2)=(oj-1)/ny
+        subchords(3)=(gk-1)/nz
+        !sono buoni tutti i processi che hanno subchords(3)==coords(3)
+        if(subchords(3)==coords(3))then
+          do j=1,ny
+            gj=ny*coords(2)+j
+            do i=1,nx
+              gi=nx*coords(1)+i
+              if((float(gi)-lx/2.0)**2 + (float(gj)-ly/2.0)**2<=10**2)then
+                !call random_number(rrx)
+                !call random_number(rry)
+                !sto sul piano gk=1
+                gk=1
+                !myoffset(3) è il mio offset lungo z del mio sottodominio MPI e mi ridà il valore di k nel sottodominio
+                k=gk-myoffset(3)
+                !è uno pseudo generatore che da un numero randomico partendo da 4 integer come seed
+                !devi fare in modo che ogni lattice point ad ogni time step abbia seed diversi
+                !quindi uso come seed la posizione i j k e il timestep come quarto seed lo metto ad cazzum
+                !il fatto che tutti i seed siano diversi è perchè può essere chiamata da più threads contemporaneamente
+                !invece se tu hai un unico seed lo devi mettere in save per tutti i threads e poi dipende da chi chiama prima (dipende dall'ordine di chiamata)
+                rrx=rand_noseeded(gi,gj,gk,524)
+                rry=rand_noseeded(gi,gj,gk,1732)
+                w(i,j,k)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
+              endif
+            enddo
           enddo
-        enddo
+        endif
         rho=1.0_db  !tot dens
         
 !        do k=1,nz
@@ -334,6 +344,11 @@ program recursiveTSLB3D
     
     !*************************************check data ************************ 
     if(myrank==0)then
+#ifdef MPI
+        write(6,*) 'MPI VERSION COMPILED'
+#else
+        write(6,*) 'SERIAL VERSION COMPILED'
+#endif
         write(6,*) '*******************LB data*****************'
         write(6,*) 'tau',tau
         write(6,*) 'omega',omega

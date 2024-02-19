@@ -18,6 +18,8 @@
     real(kind=db), parameter :: TWELVE=real(12.d0,kind=db)
     real(kind=db), parameter :: FOURTEEN=real(14.d0,kind=db)
     real(kind=db), parameter :: TWENTYFOUR=real(24.d0,kind=db)
+    
+    real(kind=db), parameter :: infinity = huge(db)
   
   integer :: narg,inumchar
   
@@ -93,6 +95,10 @@
           do k=1,nz
             do j=1,ny
               do i=1,nx
+                if(abs(data1(l,i,j,k))>infinity .or. abs(data2(l,i,j,k))>infinity )then
+                  write(6,'(4i6,2g20.10)')i,j,k,l,data1(l,i,j,k),data2(l,i,j,k)
+                  stop
+                endif
                 mymax=max(mymax,abs(data1(l,i,j,k)-data2(l,i,j,k)))
               enddo
             enddo

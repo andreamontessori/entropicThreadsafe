@@ -154,7 +154,7 @@ recursive_TSbcs_TSLB3.o:recursive_TSbcs_TSLB3.f90
 	$(FC) $(FFLAGS) recursive_TSbcs_TSLB3.f90
 
 clean-all:
-	rm -rf *.mod *.o *.x 
+	rm -rf *.mod *.o *.x *.dat
 
 clean:
 	rm -rf *.mod *.o

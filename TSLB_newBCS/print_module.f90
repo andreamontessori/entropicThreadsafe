@@ -244,7 +244,7 @@
       
     end subroutine test_little_endian 
   
-    subroutine init_output(nx,ny,nz,ncomp,lvtk)
+    subroutine init_output(ncomp,lvtk,lraw)
   
       !***********************************************************************
       !     
@@ -260,8 +260,8 @@
     
       implicit none
       
-      integer, intent(in) :: nx,ny,nz,ncomp
-      logical, intent(in) :: lvtk
+      integer, intent(in) :: ncomp
+      logical, intent(in) :: lvtk,lraw
       character(len=255) :: path,makedirectory
       logical :: lexist
       

@@ -1266,7 +1266,7 @@ module bcs3D
                         !quindi uso come seed la posizione i j k e il timestep come quarto seed 
                         !il fatto che tutti i seed siano diversi è perchè può essere chiamata da più threads contemporaneamente
                         !invece se tu hai un unico seed lo devi mettere in save per tutti i threads e poi dipende da chi chiama prima (dipende dall'ordine di chiamata)
-					    rrx=rand_noseeded(i,j,k,step)		
+					    rrx=rand_noseeded(gi,gj,gk,step)		
 						w(i,j,k)=uwall + 0.004*sqrt(-2.0*log(rrx))*cos(2*3.1415926535897932384626433832795028841971*rrx)
 					endif
 				enddo

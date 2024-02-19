@@ -61,7 +61,8 @@ program recursiveTSLB3D
         fz=0.0_db*10.0**(-5)
 		    uwall=0.05
         lprint=.true.
-        lvtk=.true.
+        lvtk=.false.
+        lraw=.true.
         lasync=.false.
         lpbc=.true.
         periodic(1)=.true.
@@ -298,6 +299,7 @@ program recursiveTSLB3D
         write(6,*) 'lpbc',lpbc
         write(6,*) 'lprint',lprint
         write(6,*) 'lvtk',lvtk
+        write(6,*) 'lraw',lraw
         write(6,*) 'lasync',lasync
         write(6,*) 'nsteps',nsteps
         write(6,*) 'stamp',stamp
@@ -316,7 +318,7 @@ program recursiveTSLB3D
     write(6,'(a,i8,a,i8,3f16.4)')'start step : ',0,' frame ',iframe
     
     if(lprint)then  
-        call init_output(nx,ny,nz,1,lvtk)
+        call init_output(1,lvtk,lraw)
         call string_char(head1,nheadervtk(1),headervtk(1))
         call string_char(head2,nheadervtk(2),headervtk(2))
     endif
@@ -338,7 +340,8 @@ program recursiveTSLB3D
       !$acc update host(rhoprint,velprint)
       if(lvtk)then
         call print_vtk_sync(iframe)
-      else
+      endif
+      if(lraw)then
         call print_raw_sync(iframe)
       endif
     endif
@@ -583,7 +586,8 @@ program recursiveTSLB3D
               !$acc update host(rhoprint,velprint) 
               if(lvtk)then
                 call print_vtk_sync(iframe)
-              else
+              endif
+              if(lraw)then
                 call print_raw_sync(iframe)
               endif
               if(ldiagnostic)call end_timing2("IO","print")
