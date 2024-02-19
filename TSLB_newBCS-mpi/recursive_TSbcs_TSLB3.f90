@@ -66,8 +66,8 @@ program recursiveTSLB3D
         lpbc=.true.
         
         proc_x=1
-        proc_y=2
-        proc_z=2
+        proc_y=1
+        proc_z=1
         pbc_x=1  !(0=false 1=true)
         pbc_y=1
         pbc_z=0

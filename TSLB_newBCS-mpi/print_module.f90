@@ -7,14 +7,14 @@
     
     interface
       function get_mem ( ) bind ( C, name = "get_mem" )
-        use ISO_C_BINDING, only : c_double
+        use iso_c_binding, only : c_double
         real(kind=c_double) :: get_mem
       end function get_mem
     end interface
 
     interface
       function get_totalram ( ) bind ( C, name = "get_totalram" )
-        use ISO_C_BINDING, only : c_double
+        use iso_c_binding, only : c_double
         real(kind=c_double) :: get_totalram
       end function get_totalram
     end interface

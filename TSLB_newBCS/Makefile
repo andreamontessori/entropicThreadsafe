@@ -57,9 +57,9 @@ nvfortran-debug:
 nvfortran-mpi:
 	$(MAKE) CC=mpicc \
 	FC=mpif90 \
-	CFLAGS="-O1 -I $(CURDIR) -c" \
-	FFLAGS="-O1 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-O1 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -DMPI -DVERBOSE -I $(CURDIR) -o" \
+	CFLAGS="-O3 -I $(CURDIR) -c" \
+	FFLAGS="-O3 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
+	LDFLAGS="-O3 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -DMPI -DVERBOSE -I $(CURDIR) -o" \
 	TYPE=mpi \
 	EX=$(EXP) BINROOT=$(BINROOT) mpi
 
