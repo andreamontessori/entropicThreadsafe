@@ -5,10 +5,26 @@ program recursiveTSLB3D
     use prints
     use vars
     use bcs3D
+    use profiling_m,   only : timer_init,itime_start, &
+                        startPreprocessingTime,print_timing_partial, &
+                        reset_timing_partial,printSimulationTime, &
+                        print_timing_final,itime_counter,idiagnostic, &
+                        ldiagnostic,start_timing2,end_timing2, &
+                        set_value_ldiagnostic,set_value_idiagnostic, &
+                        startSimulationTime,print_memory_registration, &
+                        get_memory, &
+#ifdef CUDA
+                        get_totram,get_memory_cuda,print_memory_registration_cuda
+#else
+                        get_totram
+#endif 
     
     implicit none
     integer :: dumpYN
     integer :: dumpstep
+    logical :: mydiagnostic
+    integer :: tdiagnostic
+    real(kind=db) :: smemory,sram
 
 #ifdef _OPENACC
     integer :: devNum
@@ -32,12 +48,12 @@ program recursiveTSLB3D
 #endif
 
     !*******************************user parameters and allocations**************************
-        nx=150
-        ny=150
-        nz=600
+        lx=150
+        ly=150
+        lz=600
         nsteps=10000
         stamp=1000
-        stamp2D=1000
+        stamp2D=100000
         dumpstep=100000000
         fx=0.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
@@ -45,17 +61,42 @@ program recursiveTSLB3D
 		    uwall=0.05
         lprint=.true.
         lvtk=.true.
+        lraw=.false.
         lasync=.false.
         lpbc=.true.
-        periodic(1)=.true.
-        periodic(2)=.true.
-        periodic(3)=.false.
+        
+        proc_x=1
+        proc_y=1
+        proc_z=2
+        pbc_x=1
+        pbc_y=1
+        pbc_z=0
+
+        !periodic(1)=.true.
+        !periodic(2)=.true.
+        !periodic(3)=.false.
+        
+        !!!!!!! START MPI!!!!!!!!!!!!!!!!!!!
+        call start_mpi
+        
+        ! start diagnostic if requested
+        mydiagnostic=.true.
+        tdiagnostic=1
+        call set_value_ldiagnostic(mydiagnostic)
+        call set_value_idiagnostic(tdiagnostic)
+        if(ldiagnostic)then
+         call timer_init()
+         call startPreprocessingTime()  
+       endif
+        
+        !!!!!!!SETUP MPI!!!!!!!!!!!!!!!!!!!
+        call setup_mpi() 
         
         allocate(f(0:nx+1,0:ny+1,0:nz+1,0:nlinks))
         allocate(rho(1:nx,1:ny,1:nz),u(1:nx,1:ny,1:nz),v(1:nx,1:ny,1:nz),w(1:nx,1:ny,1:nz))
         allocate(pxx(1:nx,1:ny,1:nz),pxy(1:nx,1:ny,1:nz),pxz(1:nx,1:ny,1:nz),pyy(1:nx,1:ny,1:nz))
         allocate(pyz(1:nx,1:ny,1:nz),pzz(1:nx,1:ny,1:nz))
-        allocate(isfluid(1:nx,1:ny,1:nz))
+        allocate(isfluid(0:nx+1,0:ny+1,0:nz+1))
         if(lprint)then
           allocate(rhoprint(1:nx,1:ny,1:nz))
           allocate(velprint(1:3,1:nx,1:ny,1:nz))
@@ -69,19 +110,37 @@ program recursiveTSLB3D
         omega=1.0_db/tau
     !*****************************************geometry************************
         isfluid=1
-!        isfluid(1,:,:)=0 !left
-!        isfluid(nx,:,:)=0 !right
-!        isfluid(:,1,:)=0 !front 
-!        isfluid(:,ny,:)=0 !rear
-        isfluid(:,:,1)=0 !bottom
-        isfluid(:,:,nz)=0 !top
+        do k=1,nz
+            gk=nz*coords(3)+k
+            do j=1,ny
+              gj=ny*coords(2)+j
+              do i=1,nx
+                gi=nx*coords(1)+i
+!                if(gi==1)isfluid(i,j,k)=0   !left
+!                if(gi==lx)isfluid(i,j,k)=0  !right
+!                if(gj==1)isfluid(i,j,k)=0   !front 
+!                if(gj==ly)isfluid(i,j,k)=0  !rear
+                if(gk==1)isfluid(i,j,k)=0   !bottom
+                if(gk==lz)isfluid(i,j,k)=0  !top
+              enddo
+            enddo
+          enddo
+          
+        !setup domain decomposition omong MPI process 
+        !(solo all'inizio)
+        call exchange_isf_sendrecv
+        call exchange_isf_intpbc
+        call exchange_isf_wait
+        
     !*************************************initial conditions ************************    
         u=0.0_db
         v=0.0_db
         w=0.0_db
-        do i=1,nx
-          do j=1,ny
-            if((float(i)-nx/2.0)**2 + (float(j)-ny/2.0)**2<=10**2)then
+        do j=1,ny
+          gj=ny*coords(2)+j
+          do i=1,nx
+            gi=nx*coords(1)+i
+            if((float(gi)-lx/2.0)**2 + (float(gj)-ly/2.0)**2<=10**2)then
               !call random_number(rrx)
               !call random_number(rry)
               !è uno pseudo generatore che da un numero randomico partendo da 4 integer come seed
@@ -89,19 +148,36 @@ program recursiveTSLB3D
               !quindi uso come seed la posizione i j k e il timestep come quarto seed lo metto ad cazzum
               !il fatto che tutti i seed siano diversi è perchè può essere chiamata da più threads contemporaneamente
               !invece se tu hai un unico seed lo devi mettere in save per tutti i threads e poi dipende da chi chiama prima (dipende dall'ordine di chiamata)
-              rrx=rand_noseeded(i,j,1,524)
-              rry=rand_noseeded(i,j,1,1732)
+              rrx=rand_noseeded(gi,gj,1,524)
+              rry=rand_noseeded(gi,gj,1,1732)
               w(i,j,1)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
             endif
           enddo
         enddo
         rho=1.0_db  !tot dens
+        
+!        do k=1,nz
+!          gk=nz*coords(3)+k
+!          do j=1,ny
+!            gj=ny*coords(2)+j
+!            do i=1,nx
+!              gi=nx*coords(1)+i
+!              if (lx/3==gi .and. ly/5==gj .and. lz/5==gk)then
+!                rho(i,j,k)=1.2
+!              endif
+!            enddo
+!          enddo
+!        enddo
+        
         !rho(nx/2,ny/2,nz-10)=1.2
         !do ll=0,nlinks
         if(dumpYN.eq.0)then
             do k=1,nz
+                  gk=nz*coords(3)+k
                   do j=1,ny
+                      gj=ny*coords(2)+j
                       do i=1,nx
+                          gi=nx*coords(1)+i
                           if(isfluid(i,j,k).eq.1)then
                               !0
                               
@@ -252,10 +328,12 @@ program recursiveTSLB3D
                   enddo
               enddo
           elseif(dumpYN.eq.1)then
-              call read_distros_1c_3d
+              !call read_distros_1c_3d
+              call dostop('read_distros_1c_3d NOT implemented')
           endif
     
     !*************************************check data ************************ 
+    if(myrank==0)then
         write(6,*) '*******************LB data*****************'
         write(6,*) 'tau',tau
         write(6,*) 'omega',omega
@@ -279,17 +357,39 @@ program recursiveTSLB3D
         write(6,*) 'max fx',huge(fy)
         write(6,*) 'max fx',huge(fz)
         write(6,*) '*******************************************'
-    !$acc data copy(step,f,isfluid,&
-             !$acc& pxx,pyy,pzz,pxy,pxz,pyz,rho,u,v,w,rhoprint,velprint)
+        
+!        call get_memory(smemory) 
+!        call get_totram(sram)
+!        call print_memory_registration(6,&
+!          'Occupied memory on HOST at the start','Total HOST memory',smemory,sram)
+        call get_memory_gpu(mymemory,totmemory)
+        call print_memory_registration_gpu(6,'DEVICE memory occupied at the start', &
+        'total DEVICE memory',mymemory,totmemory)
+        call flush(6)
+     endif
+     
+    !$acc data copy(step,lx,ly,lz,nx,ny,nz,coords,myoffset,f,isfluid, &
+       !$acc& pxx,pyy,pzz,pxy,pxz,pyz,rho,u,v,w,rhoprint,velprint, &
+       !$acc& intpbc_dir,num_links_pops,links_pops,datampi,f_datampi,uwall, &
+       !$acc& dest_extr,source_extr,f_dest_extr,f_source_extr) & 
+       !$acc& create(dest_buffmpi,source_buffmpi,f_dest_buffmpi, &
+       !$acc& f_source_buffmpi)
+       
+  
+   
+    
 #ifdef _OPENACC      
         call printDeviceProperties(ngpus,devNum,devType,6)
 #endif
     iframe=0
     iframe2D=0
-    write(6,'(a,i8,a,i8,3f16.4)')'start step : ',0,' frame ',iframe
+    if(myrank==0)then
+      write(6,'(a,i8,a,i8,3f16.4)')'start step : ',0,' frame ',iframe
+      call flush(6)
+    endif
     
     if(lprint)then  
-        call init_output(nx,ny,nz,1,lvtk)
+        call init_output(1,lvtk,lraw)
         call string_char(head1,nheadervtk(1),headervtk(1))
         call string_char(head2,nheadervtk(2),headervtk(2))
     endif
@@ -310,16 +410,29 @@ program recursiveTSLB3D
       !$acc end kernels 
       !$acc update host(rhoprint,velprint)
       if(lvtk)then
-        call print_vtk_sync(iframe)
-      else
-        call print_raw_sync(iframe)
+        call driver_print_vtk_sync(iframe)
+      endif
+      if(lraw)then
+        call driver_print_raw_sync(iframe)
       endif
     endif
+    
+    ! start diagnostic if requested
+        if(ldiagnostic)then
+           !call print_timing_partial(1,1,itime_start,6)
+           !call reset_timing_partial()
+          call startSimulationTime()
+          call get_memory(smemory) 
+          call get_totram(sram)
+          call print_memory_registration(6,&
+          'Occupied memory after setup MPI','Total memory',smemory,sram)
+        endif
       
     !*************************************time loop************************  
     call cpu_time(ts1)
     do step=1,nsteps 
         !***********************************moments collision bbck + forcing************************ 
+          if(ldiagnostic)call start_timing2("LB","moments")
           !$acc kernels
           !$acc loop collapse(3) private(fneq1,feq,temp,uu,udotc)
           do k=1,nz
@@ -515,14 +628,18 @@ program recursiveTSLB3D
               enddo
           enddo
           !$acc end kernels
+          if(ldiagnostic)call end_timing2("LB","moments")
           ! thread-safe boundary condition setup
+          if(ldiagnostic)call start_timing2("LB","bcs_TSLB")
           call bcs_TSLB_only_z_turbojet
+          if(ldiagnostic)call end_timing2("LB","bcs_TSLB")
           !call bcs_TSLB_turbojet
           !
         !***********************************Print on files 3D************************
-          if(mod(step,stamp).eq.0)write(6,'(a,i8)')'step : ',step
+          if(mod(step,stamp).eq.0 .and. myrank==0)write(6,'(a,i8)')'stamp3D step : ',step
             if(lprint)then
               if(mod(step,stamp).eq.0)then
+                if(ldiagnostic)call start_timing2("IO","print")
                 iframe=iframe+1
                 !$acc kernels present(rhoprint,velprint,rho,u,v,w) 
                 !$acc loop independent collapse(3)  private(i,j,k)
@@ -539,28 +656,35 @@ program recursiveTSLB3D
               !$acc end kernels 
               !$acc update host(rhoprint,velprint) 
               if(lvtk)then
-                call print_vtk_sync(iframe)
-              else
-                call print_raw_sync(iframe)
+                call driver_print_vtk_sync(iframe)
               endif
+              if(lraw)then
+                call driver_print_raw_sync(iframe)
+              endif
+              if(ldiagnostic)call end_timing2("IO","print")
             endif
           endif
         !***********************************Print on files 2D************************
-          if(mod(step,stamp2D).eq.0)write(6,'(a,i8)')'step : ',step
-            if(lprint)then
-              if(mod(step,stamp2D).eq.0)then
+          if(lprint)then
+            if(mod(step,stamp2D).eq.0)then
+                write(6,'(a,i8)')'stamp2D step : ',step
+                if(ldiagnostic)call start_timing2("IO","print2d")
                 iframe2D=iframe2D+1
                 !$acc update host(rho,u,v,w) 
                 call print_raw_slice_sync(iframe2D)
+                if(ldiagnostic)call end_timing2("IO","print2d")
             endif
           endif
         !***********************************dump f************************
           if(mod(step,dumpstep).eq.0) then
                 write(6,'(a,i8)')'dump step at : ',step
+                if(ldiagnostic)call start_timing2("IO","dump_distros")
                 !$acc update host(f) 
                 call dump_distros_1c_3d
+                if(ldiagnostic)call end_timing2("IO","dump_distros")
           endif
         !***********************************collision + no slip + forcing: fused implementation*********
+          if(ldiagnostic)call start_timing2("LB","fused")
           !$acc kernels
           !$acc loop collapse(3) private(feq,uu,temp,udotc)
           do k=1,nz
@@ -715,14 +839,38 @@ program recursiveTSLB3D
               enddo
           enddo
           !$acc end kernels
+          if(ldiagnostic)call end_timing2("LB","fused")
         !***********************************pbcs boundary conditions ********************************!
-        call pbcs      
+        !call pbcs
+        if(ldiagnostic)call start_timing2("LB","pbcs")
+        call exchange_pops_sendrecv
+        call exchange_pops_intpbc
+        call exchange_pops_wait
+        if(ldiagnostic)call end_timing2("LB","pbcs") 
     enddo 
     !$acc end data
     call cpu_time(ts2)
-    write(6,*) 'time elapsed: ', ts2-ts1, ' s of your life time' 
-    write(6,*) 'glups: ',  real(nx)*real(ny)*real(nz)*real(nsteps)/1.0e9/(ts2-ts1)
     
+    if(ldiagnostic)then
+      call printSimulationTime()
+      call print_timing_final(idiagnostic,itime_counter, &
+       itime_start,1,1,6)
+      call get_memory(smemory) 
+      call get_totram(sram)
+      call print_memory_registration(6,&
+      'Occupied memory after setup MPI','Total memory',smemory,sram)
+    endif
+    
+    if(myrank==0)then
+      write(6,*) 'time elapsed: ', ts2-ts1, ' s of your life time' 
+      write(6,*) 'glups: ',  real(nx)*real(ny)*real(nz)*real(nsteps)/1.0e9/(ts2-ts1)
+    endif
+    
+    call get_memory(smemory) 
+    call get_totram(sram)
+    call print_memory_registration(6,&
+      'Occupied memory on HOST at the end','Total HOST memory',smemory,sram)
+          
     call get_memory_gpu(mymemory,totmemory)
     call print_memory_registration_gpu(6,'DEVICE memory occupied at the end', &
      'total DEVICE memory',mymemory,totmemory)

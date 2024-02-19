@@ -1,6 +1,7 @@
 module bcs3D
     
     use vars
+    use mpi_template
     !$if _OPENACC
     use openacc
     !$endif
@@ -1233,63 +1234,111 @@ module bcs3D
     subroutine bcs_TSLB_only_z_turbojet
         
         implicit none 
-
+        
+        integer :: subchords(3)
+        
+      !devo trovare quali processi hanno in carico i nodi lungo il piano gk=1
+      gk=1
+      !subchords(1)=(oi-1)/nx
+      !subchords(2)=(oj-1)/ny
+      subchords(3)=(gk-1)/nz
+      !sono buoni tutti i processi che hanno subchords(3)==coords(3)
+      if(subchords(3)==coords(3))then
         if(mod(step,10).eq.0)then
-            !devo fare update di step che mi serve come seed
+            !devo fare update di step che mi serve come seed 
             !$acc update device(step)
-            !$acc kernels present(w) 
-            !$acc loop independent collapse(2)  private(i,j)
+            
+            !$acc kernels present(w,step,myoffset,coords,nx,ny) 
+            !$acc loop independent collapse(2)  private(i,j,k,gi,gj,gk,rrx)
 !			!$acc update host(w(nx/2-20:nx/2+20,ny/2-20:ny/2+20,1))
-			do i=nx/2-20,nx/2+20
-				do j=ny/2-20,ny/2+20
-					if((float(i)-nx/2.0)**2 + (float(j)-ny/2.0)**2<=10**2)then
+            do j=1,ny
+			  do i=1,nx
+			        gi=nx*coords(1)+i
+			        gj=ny*coords(2)+j
+					if((float(gi)-lx/2.0)**2 + (float(gj)-ly/2.0)**2<=10**2)then
                         !call random_number(rrx)
-                        
+                        !sto sul piano gk=1
+                        gk=1
+                        !myoffset(3) è il mio offset lungo z del mio sottodominio MPI e mi ridà il valore di k nel sottodominio
+                        k=gk-myoffset(3)
                         !è uno pseudo generatore che da un numero randomico partendo da 4 integer come seed
                         !devi fare in modo che ogni lattice point ad ogni time step abbia seed diversi
                         !quindi uso come seed la posizione i j k e il timestep come quarto seed 
                         !il fatto che tutti i seed siano diversi è perchè può essere chiamata da più threads contemporaneamente
                         !invece se tu hai un unico seed lo devi mettere in save per tutti i threads e poi dipende da chi chiama prima (dipende dall'ordine di chiamata)
-					    rrx=rand_noseeded(i,j,1,step)		
-						w(i,j,1)=uwall + 0.004*sqrt(-2.0*log(rrx))*cos(2*3.1415926535897932384626433832795028841971*rrx)
+					    rrx=rand_noseeded(i,j,k,step)		
+						w(i,j,k)=uwall + 0.004*sqrt(-2.0*log(rrx))*cos(2*3.1415926535897932384626433832795028841971*rrx)
 					endif
 				enddo
 			enddo
            !$acc end kernels
 !		   !$acc update device(w(nx/2-20:nx/2+20,ny/2-20:ny/2+20,1))
+          
 		endif
-
-        !$acc kernels
-        !$acc loop independent 
+      
+      
+        !$acc kernels present(rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz,myoffset) async
+        !$acc loop independent collapse(2) private(i,j,k,gk)
         do j=1,ny
-            !$acc loop independent 
             do i=1,nx
-                !north south
-                rho(i,j,1)=rho(i,j,2)
-                u(i,j,1)=0.0 !u(i,j,2)
-                v(i,j,1)=0.0 !v(i,j,2)
-                !w(i,j,1)=w(i,j,1)
-                pxx(i,j,1)=pxx(i,j,2)
-                pxy(i,j,1)=pxy(i,j,2)
-                pxz(i,j,1)=pxz(i,j,2)
-                pyy(i,j,1)=pyy(i,j,2)
-                pyz(i,j,1)=pyz(i,j,2)
-                pzz(i,j,1)=pzz(i,j,2)
-                !
-                rho(i,j,nz)=rho(i,j,nz-1)
-                u(i,j,nz)=u(i,j,nz-1)
-                v(i,j,nz)=v(i,j,nz-1)
-                w(i,j,nz)=w(i,j,nz-1)
-                pxx(i,j,nz)=pxx(i,j,nz-1)
-                pxy(i,j,nz)=pxy(i,j,nz-1)
-                pxz(i,j,nz)=pxz(i,j,nz-1)
-                pyy(i,j,nz)=pyy(i,j,nz-1)
-                pyz(i,j,nz)=pyz(i,j,nz-1)
-                pzz(i,j,nz)=pzz(i,j,nz-1)
+                !sto sul piano gk=1
+                 gk=1
+                 !myoffset(3) è il mio offset lungo z del mio sottodominio MPI e mi ridà il valore di k nel sottodominio
+                 k=gk-myoffset(3)
+                !south
+                !davanti a me è k+1
+                rho(i,j,k)=rho(i,j,k+1)
+                u(i,j,k)=0.0 !u(i,j,k+1)
+                v(i,j,k)=0.0 !v(i,j,k+1)
+                !w(i,j,k)=w(i,j,k)
+                pxx(i,j,k)=pxx(i,j,k+1)
+                pxy(i,j,k)=pxy(i,j,k+1)
+                pxz(i,j,k)=pxz(i,j,k+1)
+                pyy(i,j,k)=pyy(i,j,k+1)
+                pyz(i,j,k)=pyz(i,j,k+1)
+                pzz(i,j,k)=pzz(i,j,k+1)
             enddo
         enddo
         !$acc end kernels
+      
+      endif
+      
+      !devo trovare quali processi hanno in carico i nodi lungo il piano gk=1
+      gk=lz
+      !subchords(1)=(oi-1)/nx
+      !subchords(2)=(oj-1)/ny
+      subchords(3)=(gk-1)/nz
+      !sono buoni tutti i processi che hanno subchords(3)==coords(3)
+      if(subchords(3)==coords(3))then     
+        !$acc kernels present(rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz,myoffset,lz) async
+        !$acc loop independent collapse(2) private(i,j,k)
+        do j=1,ny
+            do i=1,nx
+                !north
+                !sto sul piano gk=lz
+                !gk=lz
+                !myoffset(3) è il mio offset lungo z del mio sottodominio MPI e mi ridà il valore di k nel sottodominio
+                k=lz-myoffset(3)!gk-myoffset(3)
+                !dietro a me è k-1
+                rho(i,j,k)=rho(i,j,k-1)
+                u(i,j,k)=u(i,j,k-1)
+                v(i,j,k)=v(i,j,k-1)
+                w(i,j,k)=w(i,j,k-1)
+                pxx(i,j,k)=pxx(i,j,k-1)
+                pxy(i,j,k)=pxy(i,j,k-1)
+                pxz(i,j,k)=pxz(i,j,k-1)
+                pyy(i,j,k)=pyy(i,j,k-1)
+                pyz(i,j,k)=pyz(i,j,k-1)
+                pzz(i,j,k)=pzz(i,j,k-1)
+            enddo
+        enddo
+        !$acc end kernels
+      endif
+      
+      !$acc wait
+      
     endsubroutine
+    
     !*****************************************************
     subroutine pbcs
         

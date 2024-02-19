@@ -2,6 +2,19 @@ program recursiveTSLB3D
 #ifdef _OPENACC
     use openacc
 #endif
+    use profiling_m,   only : timer_init,itime_start, &
+                        startPreprocessingTime,print_timing_partial, &
+                        reset_timing_partial,printSimulationTime, &
+                        print_timing_final,itime_counter,idiagnostic, &
+                        ldiagnostic,start_timing2,end_timing2, &
+                        set_value_ldiagnostic,set_value_idiagnostic, &
+                        startSimulationTime,print_memory_registration, &
+                        get_memory, &
+#ifdef CUDA
+                        get_totram,get_memory_cuda,print_memory_registration_cuda
+#else
+                        get_totram
+#endif   
     use prints
     use vars
     use bcs3D
@@ -9,7 +22,11 @@ program recursiveTSLB3D
     implicit none
     integer :: dumpYN
     integer :: dumpstep
-
+    logical :: mydiagnostic
+    integer :: tdiagnostic
+    
+    real(kind=db) :: smemory,sram 
+    
 #ifdef _OPENACC
     integer :: devNum
     integer(acc_device_kind) :: devType
@@ -37,7 +54,7 @@ program recursiveTSLB3D
         nz=600
         nsteps=10000
         stamp=1000
-        stamp2D=1000
+        stamp2D=1000000
         dumpstep=100000000
         fx=0.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
@@ -50,6 +67,16 @@ program recursiveTSLB3D
         periodic(1)=.true.
         periodic(2)=.true.
         periodic(3)=.false.
+        
+        ! start diagnostic if requested
+        mydiagnostic=.true.
+        tdiagnostic=1
+        call set_value_ldiagnostic(mydiagnostic)
+        call set_value_idiagnostic(tdiagnostic)
+        if(ldiagnostic)then
+         call timer_init()
+         call startPreprocessingTime()  
+       endif
         
         allocate(f(0:nx+1,0:ny+1,0:nz+1,0:nlinks))
         allocate(rho(1:nx,1:ny,1:nz),u(1:nx,1:ny,1:nz),v(1:nx,1:ny,1:nz),w(1:nx,1:ny,1:nz))
@@ -315,11 +342,23 @@ program recursiveTSLB3D
         call print_raw_sync(iframe)
       endif
     endif
+    
+       ! start diagnostic if requested
+        if(ldiagnostic)then
+           !call print_timing_partial(1,1,itime_start,6)
+           !call reset_timing_partial()
+          call startSimulationTime()
+          call get_memory(smemory) 
+          call get_totram(sram)
+          call print_memory_registration(6,&
+          'Occupied memory after setup MPI','Total memory',smemory,sram)
+        endif
       
     !*************************************time loop************************  
     call cpu_time(ts1)
     do step=1,nsteps 
         !***********************************moments collision bbck + forcing************************ 
+        if(ldiagnostic)call start_timing2("LB","moments")
           !$acc kernels
           !$acc loop collapse(3) private(fneq1,feq,temp,uu,udotc)
           do k=1,nz
@@ -515,14 +554,18 @@ program recursiveTSLB3D
               enddo
           enddo
           !$acc end kernels
+          if(ldiagnostic)call end_timing2("LB","moments")
           ! thread-safe boundary condition setup
+          if(ldiagnostic)call start_timing2("LB","bcs_TSLB")
           call bcs_TSLB_only_z_turbojet
+          if(ldiagnostic)call end_timing2("LB","bcs_TSLB")
           !call bcs_TSLB_turbojet
           !
         !***********************************Print on files 3D************************
           if(mod(step,stamp).eq.0)write(6,'(a,i8)')'step : ',step
             if(lprint)then
               if(mod(step,stamp).eq.0)then
+                if(ldiagnostic)call start_timing2("IO","print")
                 iframe=iframe+1
                 !$acc kernels present(rhoprint,velprint,rho,u,v,w) 
                 !$acc loop independent collapse(3)  private(i,j,k)
@@ -543,24 +586,30 @@ program recursiveTSLB3D
               else
                 call print_raw_sync(iframe)
               endif
+              if(ldiagnostic)call end_timing2("IO","print")
             endif
           endif
         !***********************************Print on files 2D************************
-          if(mod(step,stamp2D).eq.0)write(6,'(a,i8)')'step : ',step
-            if(lprint)then
-              if(mod(step,stamp2D).eq.0)then
-                iframe2D=iframe2D+1
-                !$acc update host(rho,u,v,w) 
-                call print_raw_slice_sync(iframe2D)
+          if(lprint)then
+            if(mod(step,stamp2D).eq.0)then
+              write(6,'(a,i8)')'step2D : ',step
+              if(ldiagnostic)call start_timing2("IO","print2d")
+              iframe2D=iframe2D+1
+              !$acc update host(rho,u,v,w) 
+              call print_raw_slice_sync(iframe2D)
+              if(ldiagnostic)call end_timing2("IO","print2d")
             endif
-          endif
+          endif          
         !***********************************dump f************************
           if(mod(step,dumpstep).eq.0) then
                 write(6,'(a,i8)')'dump step at : ',step
+                if(ldiagnostic)call start_timing2("IO","dump_distros")
                 !$acc update host(f) 
                 call dump_distros_1c_3d
+                if(ldiagnostic)call end_timing2("IO","dump_distros")
           endif
         !***********************************collision + no slip + forcing: fused implementation*********
+          if(ldiagnostic)call start_timing2("LB","fused")
           !$acc kernels
           !$acc loop collapse(3) private(feq,uu,temp,udotc)
           do k=1,nz
@@ -715,11 +764,25 @@ program recursiveTSLB3D
               enddo
           enddo
           !$acc end kernels
+          if(ldiagnostic)call end_timing2("LB","fused")
         !***********************************pbcs boundary conditions ********************************!
-        call pbcs      
+        if(ldiagnostic)call start_timing2("LB","pbcs")
+        call pbcs  
+        if(ldiagnostic)call end_timing2("LB","pbcs")    
     enddo 
     !$acc end data
     call cpu_time(ts2)
+    
+    if(ldiagnostic)then
+      call printSimulationTime()
+      call print_timing_final(idiagnostic,itime_counter, &
+       itime_start,1,1,6)
+      call get_memory(smemory) 
+      call get_totram(sram)
+      call print_memory_registration(6,&
+      'Occupied memory after setup MPI','Total memory',smemory,sram)
+    endif
+    
     write(6,*) 'time elapsed: ', ts2-ts1, ' s of your life time' 
     write(6,*) 'glups: ',  real(nx)*real(ny)*real(nz)*real(nsteps)/1.0e9/(ts2-ts1)
     

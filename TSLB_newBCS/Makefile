@@ -40,8 +40,8 @@ nvfortran:
 	$(MAKE) CC=nvcc \
 	FC=nvfortran \
 	CFLAGS="-O3 -I $(CURDIR) -c" \
-	FFLAGS="-O3 -cpp -acc -gpu=cc75 -DPRC=4 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-O3 -cpp -acc -gpu=cc75 -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-O3 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
+	LDFLAGS="-O3 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
 	TYPE="seq" \
 	EX=$(EX) BINROOT=$(BINROOT) seq
 
@@ -58,8 +58,8 @@ nvfortran-mpi:
 	$(MAKE) CC=mpicc \
 	FC=mpif90 \
 	CFLAGS="-O1 -I $(CURDIR) -c" \
-	FFLAGS="-O1 -cpp -acc -gpu=cc75 -DPRC=4 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-O1 -cpp -acc -gpu=cc75 -DPRC=4 -DMPI -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-O1 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
+	LDFLAGS="-O1 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -DMPI -DVERBOSE -I $(CURDIR) -o" \
 	TYPE=mpi \
 	EX=$(EXP) BINROOT=$(BINROOT) mpi
 
@@ -117,15 +117,15 @@ gnu-mpi-double:
 	TYPE=mpi \
 	EX=$(EXP) BINROOT=$(BINROOT) mpi
 
-seq:vars_single_3D_module.o \
+seq:get_mem.o get_ram.o vars_single_3D_module.o profiling_m.o \
 	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
-	$(FC) $(LDFLAGS) $(EX) vars_single_3D_module.o \
+	$(FC) $(LDFLAGS) $(EX) get_mem.o get_ram.o vars_single_3D_module.o profiling_m.o \
 	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
 #	mv $(EX) $(EXE)
 
-mpi:vars_single_3D_module.o \
+mpi:get_mem.o get_ram.o vars_single_3D_module.o profiling_m.o \
 	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
-	$(FC) $(LDFLAGS) $(EX) vars_single_3D_module.o \
+	$(FC) $(LDFLAGS) $(EX) get_mem.o get_ram.o vars_single_3D_module.o profiling_m.o \
 	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
 #	mv $(EXP) $(EXEP)
 
@@ -137,6 +137,9 @@ get_ram.o:get_ram.c
 
 vars_single_3D_module.o:vars_single_3D_module.f90
 	$(FC) $(FFLAGS) vars_single_3D_module.f90
+
+profiling_m.o: profiling_m.f90
+	$(FC) $(FFLAGS) profiling_m.f90
 
 boundary_cds_3D_module.o:boundary_cds_3D_module.f90
 	$(FC) $(FFLAGS) boundary_cds_3D_module.f90

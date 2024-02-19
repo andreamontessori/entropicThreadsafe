@@ -657,7 +657,7 @@
     
     write (iu,900) "Device Number: "      ,ngpus
     write (iu,901) "Device Name: "        ,trim(myname)
-    write (iu,903) "Total Global Memory: ",real(tot_mem)/1e9," Gbytes"
+    write (iu,903) "Total Global Memory: ",real(tot_mem)/(1024.0**3.0)," Gbytes"
     write (iu,901) "Vendor: "        ,trim(myvendor)
     write (iu,901) "Driver: "        ,trim(mydriver)
     

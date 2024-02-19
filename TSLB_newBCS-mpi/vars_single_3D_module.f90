@@ -1,12 +1,39 @@
 module vars
-
+#ifdef _OPENACC
+    use openacc
+#endif
     implicit none
+    
+#if PRC==4
     integer, parameter :: db=4 !kind(1.0)
-    integer :: i,j,k,ll
+#elif PRC==8
+    integer, parameter :: db=8 !kind(1.0)
+#else
+//#error "ERROR in specifying PRC"
+#endif    
+    integer, parameter :: isf=1 !kind(1.0)
+
+    real(kind=db), parameter :: ZERO=real(0.d0,kind=db)
+    real(kind=db), parameter :: HALF=real(0.5d0,kind=db)
+    real(kind=db), parameter :: ONE=real(1.d0,kind=db)
+    real(kind=db), parameter :: TWO=real(2.d0,kind=db)
+    real(kind=db), parameter :: THREE=real(3.d0,kind=db)
+    real(kind=db), parameter :: FOUR=real(4.d0,kind=db)
+    real(kind=db), parameter :: FIVE=real(5.d0,kind=db)
+    real(kind=db), parameter :: SIX=real(6.d0,kind=db)
+    real(kind=db), parameter :: EIGHT=real(8.d0,kind=db)
+    real(kind=db), parameter :: TEN=real(10.d0,kind=db)
+    real(kind=db), parameter :: TWELVE=real(12.d0,kind=db)
+    real(kind=db), parameter :: FOURTEEN=real(14.d0,kind=db)
+    real(kind=db), parameter :: TWENTYFOUR=real(24.d0,kind=db)
+
+    integer :: i,j,k,ll,l
+    integer :: gi,gj,gk
     integer :: nx,ny,nz,step,stamp,stamp2D,nsteps,ngpus
+    integer :: lx,ly,lz
     integer :: istat,iframe,iframe2D
     
-    logical :: lprint,lvtk,lasync,lpbc
+    logical :: lprint,lvtk,lasync,lpbc,lraw
     
     real(kind=db),parameter :: pi_greek=3.14159265359793234626433
     
@@ -15,8 +42,6 @@ module vars
     real(kind=db) :: tau,one_ov_nu,fx,fy,fz,temp
 
     real(kind=db) :: fneq1,feq,feqs,us,vs,ws
-    
-    logical :: periodic(3)
     
     integer, parameter :: nlinks=26  
     !lattice vectors
@@ -37,18 +62,22 @@ module vars
     real(kind=db), dimension(0:nlinks), parameter :: &
      p=(/p0,p1,p1,p1,p1,p1,p1,p2,p2,p2,p2,p2,p2,p2,p2,p2,p2,p2,p2,p3,p3,p3,p3,p3,p3,p3,p3/)
     
-    real(kind=db), parameter :: cssq=1.0_db/3.0_db
+    real(kind=db), parameter :: cssq=real(1.d0/3.d0,kind=db)
     real(kind=db), parameter :: p1dcssq=p1/cssq
     real(kind=db), parameter :: p2dcssq=p2/cssq
     real(kind=db), parameter :: p3dcssq=p3/cssq
+
+    real(kind=db), dimension(0:nlinks), parameter :: dex=real(ex,kind=db)
+    real(kind=db), dimension(0:nlinks), parameter :: dey=real(ey,kind=db)
+    real(kind=db), dimension(0:nlinks), parameter :: dez=real(ez,kind=db)
     
-    integer(kind=4), allocatable,dimension(:,:,:)   :: isfluid
+    integer(kind=isf), allocatable,dimension(:,:,:)   :: isfluid
     real(kind=db), allocatable, dimension(:,:,:) :: rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz
     real(kind=db), allocatable, dimension(:,:,:) :: phi,normx,normy,normz
     real(kind=db), allocatable, dimension(:,:,:,:) :: f,g
     real(kind=db) :: mymemory,totmemory
 	real(kind=db) :: uwall
-	real(kind=4) :: rrx,rry,rrz
+	real(kind=db) :: rrx,rry,rrz
 
     !****************************print vars**************************************!
     
@@ -70,7 +99,7 @@ module vars
     logical :: lelittle
     character(len=mxln) :: dir_out
     character(len=mxln) :: extentvtk
-    character(len=mxln) :: sevt1,sevt2
+    character(len=mxln) :: sevt1,sevt2,arg,directive
     character(len=1), allocatable, dimension(:) :: head1,head2
     
   contains
@@ -164,5 +193,198 @@ module vars
     rand_noseeded = real(uni,kind=db)
    end function rand_noseeded
 
+    subroutine string_char(mychar,nstring,mystring)
+    
+      implicit none
+      
+      integer :: i
+      character(1), allocatable, dimension(:) :: mychar
+      integer, intent(in) :: nstring
+      character(len=*), intent(in) :: mystring
+      
+      allocate(mychar(nstring))
+      
+      do i=1,nstring
+        mychar(i)=mystring(i:i)
+      enddo
+      
+    end subroutine string_char
+  
+    function space_fmtnumb(inum)
+
+      !***********************************************************************
+      !     
+      !     LBsoft function for returning the string of six characters 
+      !     with integer digits and leading spaces to the left
+      !     originally written in JETSPIN by M. Lauricella et al.
+      !     
+      !     licensed under Open Software License v. 3.0 (OSL-3.0)
+      !     author: M. Lauricella
+      !     last modification October 2019
+      !     
+      !***********************************************************************
+
+      implicit none
+
+      integer,intent(in) :: inum
+      character(len=6) :: space_fmtnumb
+      integer :: numdigit,irest
+      real(kind=8) :: tmp
+      character(len=22) :: cnumberlabel
+
+      numdigit=dimenumb(inum)
+      irest=6-numdigit
+      if(irest>0)then
+        write(cnumberlabel,"(a,i8,a,i8,a)")"(a",irest,",i",numdigit,")"
+        write(space_fmtnumb,fmt=cnumberlabel)repeat(' ',irest),inum
+      else
+        write(cnumberlabel,"(a,i8,a)")"(i",numdigit,")"
+        write(space_fmtnumb,fmt=cnumberlabel)inum
+      endif
+      
+      return
+
+    end function space_fmtnumb
+ 
+    function space_fmtnumb12(inum)
+  
+      !***********************************************************************
+      !     
+      !     LBsoft function for returning the string of six characters 
+      !     with integer digits and leading TWELVE spaces to the left
+      !     originally written in JETSPIN by M. Lauricella et al.
+      !     
+      !     licensed under Open Software License v. 3.0 (OSL-3.0)
+      !     author: M. Lauricella
+      !     last modification October 2019
+      !     
+      !***********************************************************************
+  
+        implicit none
+
+        integer,intent(in) :: inum
+        character(len=12) :: space_fmtnumb12
+        integer :: numdigit,irest
+        real(kind=8) :: tmp
+        character(len=22) :: cnumberlabel
+
+        numdigit=dimenumb(inum)
+        irest=12-numdigit
+        if(irest>0)then
+          write(cnumberlabel,"(a,i8,a,i8,a)")"(a",irest,",i",numdigit,")"
+          write(space_fmtnumb12,fmt=cnumberlabel)repeat(' ',irest),inum
+        else
+          write(cnumberlabel,"(a,i8,a)")"(i",numdigit,")"
+          write(space_fmtnumb12,fmt=cnumberlabel)inum
+        endif
+        
+        return
+
+    end function space_fmtnumb12
+  
+    function dimenumb(inum)
+  
+        !***********************************************************************
+        !    
+        !     LBsoft function for returning the number of digits
+        !     of an integer number
+        !     originally written in JETSPIN by M. Lauricella et al.
+        !    
+        !     licensed under the 3-Clause BSD License (BSD-3-Clause)
+        !     author: M. Lauricella
+        !     last modification July 2018
+        !    
+        !***********************************************************************
+
+        implicit none
+
+        integer,intent(in) :: inum
+        integer :: dimenumb
+        integer :: i
+        real(kind=db) :: tmp
+
+        i=1
+        tmp=real(inum,kind=db)
+        do
+        if(tmp< 10.0_db )exit
+          i=i+1
+          tmp=tmp/ 10.0_db
+        enddo
+
+        dimenumb=i
+
+        return
+
+    end function dimenumb
+
+    function write_fmtnumb(inum)
+  
+          !***********************************************************************
+          !    
+          !     LBsoft function for returning the string of six characters
+          !     with integer digits and leading zeros to the left
+          !     originally written in JETSPIN by M. Lauricella et al.
+          !    
+          !     licensed under the 3-Clause BSD License (BSD-3-Clause)
+          !     author: M. Lauricella
+          !     last modification July 2018
+          !    
+          !***********************************************************************
+      
+          implicit none
+
+          integer,intent(in) :: inum
+          character(len=6) :: write_fmtnumb
+          integer :: numdigit,irest
+          !real*8 :: tmp
+          character(len=22) :: cnumberlabel
+          
+          numdigit=dimenumb(inum)
+          irest=6-numdigit
+          if(irest>0)then
+              write(cnumberlabel,"(a,i8,a,i8,a)")"(a",irest,",i",numdigit,")"
+              write(write_fmtnumb,fmt=cnumberlabel)repeat('0',irest),inum
+          else
+              write(cnumberlabel,"(a,i8,a)")"(i",numdigit,")"
+              write(write_fmtnumb,fmt=cnumberlabel)inum
+          endif
+      
+          return
+    end function write_fmtnumb   
+    
+    function write_fmtnumb2(inum)
+  
+          !***********************************************************************
+          !    
+          !     LBsoft function for returning the string of six characters
+          !     with integer digits and leading zeros to the left
+          !     originally written in JETSPIN by M. Lauricella et al.
+          !    
+          !     licensed under the 3-Clause BSD License (BSD-3-Clause)
+          !     author: M. Lauricella
+          !     last modification July 2018
+          !    
+          !***********************************************************************
+      
+          implicit none
+
+          integer,intent(in) :: inum
+          character(len=2) :: write_fmtnumb2
+          integer :: numdigit,irest
+          !real*8 :: tmp
+          character(len=22) :: cnumberlabel
+          
+          numdigit=dimenumb(inum)
+          irest=2-numdigit
+          if(irest>0)then
+              write(cnumberlabel,"(a,i8,a,i8,a)")"(a",irest,",i",numdigit,")"
+              write(write_fmtnumb2,fmt=cnumberlabel)repeat('0',irest),inum
+          else
+              write(cnumberlabel,"(a,i8,a)")"(i",numdigit,")"
+              write(write_fmtnumb2,fmt=cnumberlabel)inum
+          endif
+      
+          return
+    end function write_fmtnumb2   
 
 endmodule

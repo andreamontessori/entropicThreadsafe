@@ -9,7 +9,7 @@ FFLAGS=undefined
 LDFLAGS=undefined
 TYPE=undefined
 EX=main.x
-EXP=main_mpi.x
+EXP=main.x
 EXE = $(BINROOT)/$(EX)
 EXEP = $(BINROOT)/$(EXP)
 SHELL=/bin/sh
@@ -22,6 +22,8 @@ all:
 	@echo "                                   "
 	@echo "nvfortran                          "
 	@echo "nvfortran-mpi                      "
+	@echo "nvfortran-noacc                    "
+	@echo "nvfortran-mpi-noacc                "
 	@echo "gnu-debug                          "
 	@echo "gnu-mpi-debug                      "
 	@echo "gnu-real                           "
@@ -40,8 +42,8 @@ nvfortran:
 	$(MAKE) CC=nvcc \
 	FC=nvfortran \
 	CFLAGS="-O3 -I $(CURDIR) -c" \
-	FFLAGS="-O3 -cpp -acc -gpu=cc75 -DPRC=4 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-O3 -cpp -acc -gpu=cc75 -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-O3 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -DLATTICE=D3Q27 -I $(CURDIR) -c" \
+	LDFLAGS="-O3 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -I $(CURDIR) -o" \
 	TYPE="seq" \
 	EX=$(EX) BINROOT=$(BINROOT) seq
 
@@ -58,8 +60,26 @@ nvfortran-mpi:
 	$(MAKE) CC=mpicc \
 	FC=mpif90 \
 	CFLAGS="-O1 -I $(CURDIR) -c" \
-	FFLAGS="-O1 -cpp -acc -gpu=cc75 -DPRC=4 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-O1 -cpp -acc -gpu=cc75 -DPRC=4 -DMPI -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-O1 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -DLATTICE=D3Q27 -DMPI -I $(CURDIR) -c" \
+	LDFLAGS="-O1 -cpp -acc -gpu=cc75 -Minfo=accel -DPRC=4 -DMPI -I $(CURDIR) -o" \
+	TYPE=mpi \
+	EX=$(EXP) BINROOT=$(BINROOT) mpi
+
+nvfortran-noacc:
+	$(MAKE) CC=nvcc \
+	FC=nvfortran \
+	CFLAGS="-O3 -I $(CURDIR) -c" \
+	FFLAGS="-O3 -cpp -DPRC=4 -DLATTICE=D3Q27 -I $(CURDIR) -c" \
+	LDFLAGS="-O3 -cpp -DPRC=4 -I $(CURDIR) -o" \
+	TYPE="seq" \
+	EX=$(EX) BINROOT=$(BINROOT) seq
+
+nvfortran-mpi-noacc:
+	$(MAKE) CC=mpicc \
+	FC=mpif90 \
+	CFLAGS="-O1 -I $(CURDIR) -c" \
+	FFLAGS="-O1 -cpp -DPRC=4 -DLATTICE=D3Q27 -DMPI -I $(CURDIR) -c" \
+	LDFLAGS="-O1 -cpp -DPRC=4 -DMPI -I $(CURDIR) -o" \
 	TYPE=mpi \
 	EX=$(EXP) BINROOT=$(BINROOT) mpi
 
@@ -85,8 +105,8 @@ gnu-real:
 	$(MAKE) CC=gcc \
 	FC=gfortran \
 	CFLAGS="-Ofast -I $(CURDIR) -c" \
-	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=4 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=4 -DLATTICE=D3Q27 -I $(CURDIR) -c" \
+	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=4 -I $(CURDIR) -o" \
 	TYPE="seq" \
 	EX=$(EX) BINROOT=$(BINROOT) seq
 
@@ -94,8 +114,8 @@ gnu-mpi-real:
 	$(MAKE) CC=mpicc \
 	FC=mpif90 \
 	CFLAGS="-Ofast -I $(CURDIR) -c" \
-	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=4 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DMPI -DPRC=4 -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=4 -DLATTICE=D3Q27 -DMPI -I $(CURDIR) -c" \
+	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DMPI -DPRC=4 -I $(CURDIR) -o" \
 	TYPE=mpi \
 	EX=$(EXP) BINROOT=$(BINROOT) mpi
 
@@ -103,8 +123,8 @@ gnu-double:
 	$(MAKE) CC=gcc \
 	FC=gfortran \
 	CFLAGS="-Ofast -I $(CURDIR) -c" \
-	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=8 -DLATTICE=D3Q27 -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=8 -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=8 -DLATTICE=D3Q27 -I $(CURDIR) -c" \
+	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=8 -I $(CURDIR) -o" \
 	TYPE="seq" \
 	EX=$(EX) BINROOT=$(BINROOT) seq
 
@@ -112,21 +132,21 @@ gnu-mpi-double:
 	$(MAKE) CC=mpicc \
 	FC=mpif90 \
 	CFLAGS="-Ofast -I $(CURDIR) -c" \
-	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=8 -DLATTICE=D3Q27 -DMPI -DVERBOSE -I $(CURDIR) -c" \
-	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DMPI -DPRC=8 -DVERBOSE -I $(CURDIR) -o" \
+	FFLAGS="-Ofast -ffree-line-length-none -cpp -DPRC=8 -DLATTICE=D3Q27 -DMPI -I $(CURDIR) -c" \
+	LDFLAGS="-Ofast -ffree-line-length-none -cpp -DMPI -DPRC=8 -I $(CURDIR) -o" \
 	TYPE=mpi \
 	EX=$(EXP) BINROOT=$(BINROOT) mpi
 
-seq:vars_single_3D_module.o \
-	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
-	$(FC) $(LDFLAGS) $(EX) vars_single_3D_module.o \
-	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
+seq:get_mem.o get_ram.o vars_single_3D_module.o \
+	mpi_module.o profiling_m.o boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
+	$(FC) $(LDFLAGS) $(EX) get_mem.o get_ram.o vars_single_3D_module.o \
+	mpi_module.o profiling_m.o boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
 #	mv $(EX) $(EXE)
 
-mpi:vars_single_3D_module.o \
-	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
-	$(FC) $(LDFLAGS) $(EX) vars_single_3D_module.o \
-	boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
+mpi:get_mem.o get_ram.o vars_single_3D_module.o \
+	mpi_module.o profiling_m.o boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
+	$(FC) $(LDFLAGS) $(EX) get_mem.o get_ram.o vars_single_3D_module.o \
+	mpi_module.o profiling_m.o boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
 #	mv $(EXP) $(EXEP)
 
 get_mem.o:get_mem.c
@@ -137,6 +157,12 @@ get_ram.o:get_ram.c
 
 vars_single_3D_module.o:vars_single_3D_module.f90
 	$(FC) $(FFLAGS) vars_single_3D_module.f90
+	
+mpi_module.o:mpi_module.f90
+	$(FC) $(FFLAGS) mpi_module.f90
+
+profiling_m.o: profiling_m.f90
+	$(FC) $(FFLAGS) profiling_m.f90
 
 boundary_cds_3D_module.o:boundary_cds_3D_module.f90
 	$(FC) $(FFLAGS) boundary_cds_3D_module.f90

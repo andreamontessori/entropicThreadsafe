@@ -1,17 +1,34 @@
  module prints
     
     use vars
+    use mpi_template
     
     implicit none
+    
+    interface
+      function get_mem ( ) bind ( C, name = "get_mem" )
+        use ISO_C_BINDING, only : c_double
+        real(kind=c_double) :: get_mem
+      end function get_mem
+    end interface
+
+    interface
+      function get_totalram ( ) bind ( C, name = "get_totalram" )
+        use ISO_C_BINDING, only : c_double
+        real(kind=c_double) :: get_totalram
+      end function get_totalram
+    end interface
+    
+    
         
     contains
   
-    subroutine header_vtk(nx,ny,nz,mystring500,namevar,extent,ncomps,iinisub,iend,myoffset, &
+    subroutine header_vtk(nxs,nys,nzs,mystring500,namevar,extent,ncomps,iinisub,iend,myoffset, &
       new_myoffset,indent)
     
       implicit none
     
-      integer, intent(in) :: nx,ny,nz
+      integer, intent(in) :: nxs,nys,nzs
       character(len=8),intent(in) :: namevar
       character(len=120),intent(in) :: extent
       integer, intent(in) :: ncomps,iinisub,myoffset
@@ -154,12 +171,12 @@
     
     end subroutine header_vtk
   
-    subroutine footer_vtk(nx,ny,nz,mystring30,iinisub,iend,myoffset, &
+    subroutine footer_vtk(nxs,nys,nzs,mystring30,iinisub,iend,myoffset, &
       new_myoffset,indent)
   
       implicit none
       
-      integer, intent(in) :: nx,ny,nz
+      integer, intent(in) :: nxs,nys,nzs
       integer, intent(in) :: iinisub,myoffset
       integer, intent(out) :: iend,new_myoffset
       integer, intent(inout) :: indent
@@ -244,7 +261,7 @@
       
     end subroutine test_little_endian 
   
-    subroutine init_output(nx,ny,nz,ncomp,lvtk)
+    subroutine init_output(ncomp,lvtk,lraw)
   
       !***********************************************************************
       !     
@@ -260,8 +277,8 @@
     
       implicit none
       
-      integer, intent(in) :: nx,ny,nz,ncomp
-      logical, intent(in) :: lvtk
+      integer, intent(in) :: ncomp
+      logical, intent(in) :: lvtk,lraw
       character(len=255) :: path,makedirectory
       logical :: lexist
       
@@ -272,6 +289,8 @@
       integer, parameter :: ioxyz=54
       character(len=*), parameter :: filexyz='isfluid.xyz'
       character(len=120) :: mystring120
+      
+      if((.not. lvtk) .and. (.not. lraw))return
       
       call test_little_endian(lelittle)
       
@@ -300,7 +319,7 @@
       if(.not. lexist)then
         makedirectory=repeat(' ',255)
         makedirectory = 'mkdir output'
-        call system(makedirectory)
+        if(myrank==0)call system(makedirectory)
       endif
       mystring120=repeat(' ',120)
       
@@ -308,9 +327,9 @@
       makedirectory=repeat(' ',255)
       makedirectory=trim(path)//delimiter//'output'//delimiter
       
-      extentvtk =  space_fmtnumb(1) // ' ' // space_fmtnumb(nx) // ' ' &
-            // space_fmtnumb(1) // ' ' // space_fmtnumb(ny) // ' ' &
-            // space_fmtnumb(1) // ' ' // space_fmtnumb(nz)
+      extentvtk =  space_fmtnumb(1) // ' ' // space_fmtnumb(lx) // ' ' &
+            // space_fmtnumb(1) // ' ' // space_fmtnumb(ly) // ' ' &
+            // space_fmtnumb(1) // ' ' // space_fmtnumb(lz)
       
       if(ncomp==1)then
         nfilevtk=2
@@ -365,183 +384,25 @@
           end select
         enddo
       endif
-      nn=nx*ny*nz
+      nn=lx*ly*lz
       
       do i=1,nfilevtk
         myoffset=0
         indent=0
-        call header_vtk(nx,ny,nz,headervtk(i),namevarvtk(i),extentvtk,ndimvtk(i),0,iend,myoffset, &
+        call header_vtk(lx,ly,lz,headervtk(i),namevarvtk(i),extentvtk,ndimvtk(i),0,iend,myoffset, &
         new_myoffset,indent)
         vtkoffset(i)=new_myoffset
         myoffset=new_myoffset+byteint+ndimvtk(i)*nn*byter4
         ndatavtk(i)=ndimvtk(i)*nn*byter4
         nheadervtk(i)=iend
-        call footer_vtk(nx,ny,nz,footervtk(i),0,iend,myoffset, &
+        call footer_vtk(lx,ly,lz,footervtk(i),0,iend,myoffset, &
         new_myoffset,indent)
       enddo
       
       return
 
     end subroutine init_output
-  
-    subroutine string_char(mychar,nstring,mystring)
-    
-      implicit none
-      
-      integer :: i
-      character(1), allocatable, dimension(:) :: mychar
-      integer, intent(in) :: nstring
-      character(len=*), intent(in) :: mystring
-      
-      allocate(mychar(nstring))
-      
-      do i=1,nstring
-        mychar(i)=mystring(i:i)
-      enddo
-      
-    end subroutine string_char
-  
-    function space_fmtnumb(inum)
 
-      !***********************************************************************
-      !     
-      !     LBsoft function for returning the string of six characters 
-      !     with integer digits and leading spaces to the left
-      !     originally written in JETSPIN by M. Lauricella et al.
-      !     
-      !     licensed under Open Software License v. 3.0 (OSL-3.0)
-      !     author: M. Lauricella
-      !     last modification October 2019
-      !     
-      !***********************************************************************
-
-      implicit none
-
-      integer,intent(in) :: inum
-      character(len=6) :: space_fmtnumb
-      integer :: numdigit,irest
-      real(kind=8) :: tmp
-      character(len=22) :: cnumberlabel
-
-      numdigit=dimenumb(inum)
-      irest=6-numdigit
-      if(irest>0)then
-        write(cnumberlabel,"(a,i8,a,i8,a)")"(a",irest,",i",numdigit,")"
-        write(space_fmtnumb,fmt=cnumberlabel)repeat(' ',irest),inum
-      else
-        write(cnumberlabel,"(a,i8,a)")"(i",numdigit,")"
-        write(space_fmtnumb,fmt=cnumberlabel)inum
-      endif
-      
-      return
-
-    end function space_fmtnumb
- 
-    function space_fmtnumb12(inum)
-  
-      !***********************************************************************
-      !     
-      !     LBsoft function for returning the string of six characters 
-      !     with integer digits and leading TWELVE spaces to the left
-      !     originally written in JETSPIN by M. Lauricella et al.
-      !     
-      !     licensed under Open Software License v. 3.0 (OSL-3.0)
-      !     author: M. Lauricella
-      !     last modification October 2019
-      !     
-      !***********************************************************************
-  
-        implicit none
-
-        integer,intent(in) :: inum
-        character(len=12) :: space_fmtnumb12
-        integer :: numdigit,irest
-        real(kind=8) :: tmp
-        character(len=22) :: cnumberlabel
-
-        numdigit=dimenumb(inum)
-        irest=12-numdigit
-        if(irest>0)then
-          write(cnumberlabel,"(a,i8,a,i8,a)")"(a",irest,",i",numdigit,")"
-          write(space_fmtnumb12,fmt=cnumberlabel)repeat(' ',irest),inum
-        else
-          write(cnumberlabel,"(a,i8,a)")"(i",numdigit,")"
-          write(space_fmtnumb12,fmt=cnumberlabel)inum
-        endif
-        
-        return
-
-    end function space_fmtnumb12
-  
-    function dimenumb(inum)
-  
-        !***********************************************************************
-        !    
-        !     LBsoft function for returning the number of digits
-        !     of an integer number
-        !     originally written in JETSPIN by M. Lauricella et al.
-        !    
-        !     licensed under the 3-Clause BSD License (BSD-3-Clause)
-        !     author: M. Lauricella
-        !     last modification July 2018
-        !    
-        !***********************************************************************
-
-        implicit none
-
-        integer,intent(in) :: inum
-        integer :: dimenumb
-        integer :: i
-        real(kind=db) :: tmp
-
-        i=1
-        tmp=real(inum,kind=db)
-        do
-        if(tmp< 10.0_db )exit
-          i=i+1
-          tmp=tmp/ 10.0_db
-        enddo
-
-        dimenumb=i
-
-        return
-
-    end function dimenumb
-
-    function write_fmtnumb(inum)
-  
-          !***********************************************************************
-          !    
-          !     LBsoft function for returning the string of six characters
-          !     with integer digits and leading zeros to the left
-          !     originally written in JETSPIN by M. Lauricella et al.
-          !    
-          !     licensed under the 3-Clause BSD License (BSD-3-Clause)
-          !     author: M. Lauricella
-          !     last modification July 2018
-          !    
-          !***********************************************************************
-      
-          implicit none
-
-          integer,intent(in) :: inum
-          character(len=6) :: write_fmtnumb
-          integer :: numdigit,irest
-          !real*8 :: tmp
-          character(len=22) :: cnumberlabel
-          
-          numdigit=dimenumb(inum)
-          irest=6-numdigit
-          if(irest>0)then
-              write(cnumberlabel,"(a,i8,a,i8,a)")"(a",irest,",i",numdigit,")"
-              write(write_fmtnumb,fmt=cnumberlabel)repeat('0',irest),inum
-          else
-              write(cnumberlabel,"(a,i8,a)")"(i",numdigit,")"
-              write(write_fmtnumb,fmt=cnumberlabel)inum
-          endif
-      
-          return
-    end function write_fmtnumb   
     
     subroutine get_memory_gpu(fout,fout2)
 
@@ -616,7 +477,7 @@
           
           
           
-        
+          if(myrank/=0)return
           write (r_char,'(f12.4)')mymemory
           write (r_char2,'(f12.4)')totmem
           write(iu,of)"                                                                               "
@@ -631,6 +492,45 @@
           return
   
     end subroutine print_memory_registration_gpu
+    
+    subroutine print_memory_registration(iu,mybanner,mybanner2,mymemory,totmem)
+ 
+!***********************************************************************
+!     
+!     LBsoft subroutine for printing the memory registration
+!     
+!     licensed under the 3-Clause BSD License (BSD-3-Clause)
+!     author: M. Lauricella
+!     last modification July 2018
+!     
+!***********************************************************************
+  
+  implicit none
+  
+  integer, intent(in) :: iu
+  character(len=*), intent(in) :: mybanner,mybanner2
+  real(kind=PRC), intent(in) :: mymemory,totmem
+  
+  character(len=12) :: r_char,r_char2
+  
+  character(len=*),parameter :: of='(a)'
+  
+  
+  if(myrank/=0)return
+  write (r_char,'(f12.4)')mymemory
+  write (r_char2,'(f12.4)')totmem/real(1024.0,kind=db)
+  write(iu,of)"                                                                               "
+  write(iu,of)"********************************MEMORY MONITOR*********************************"
+  write(iu,of)"                                                                               "
+  write(iu,'(4a)')trim(mybanner)," = ",trim(adjustl(r_char))," (MB)"
+  write(iu,'(4a)')trim(mybanner2)," = ",trim(adjustl(r_char2))," (GB)"
+  write(iu,of)"                                                                               "
+  write(iu,of)"*******************************************************************************"
+  write(iu,of)"                                                                               "
+  
+  return
+  
+ end subroutine print_memory_registration
     !******************************************************************************************************!
 #ifdef _OPENACC
     subroutine printDeviceProperties(ngpus,dev_Num,dev_Type,iu)
@@ -651,13 +551,14 @@
     call acc_get_property_string(dev_num,dev_type,acc_property_vendor,myvendor)
     call acc_get_property_string(dev_num,dev_type,acc_property_driver,mydriver)
     
+    if(myrank/=0)return
     write(iu,907)"                                                                               "
     write(iu,907)"*****************************GPU FEATURE MONITOR*******************************"
     write(iu,907)"                                                                               "
     
     write (iu,900) "Device Number: "      ,ngpus
     write (iu,901) "Device Name: "        ,trim(myname)
-    write (iu,903) "Total Global Memory: ",real(tot_mem)/1e9," Gbytes"
+    write (iu,903) "Total Global Memory: ",real(tot_mem)/(1024.0**3.0)," Gbytes"
     write (iu,901) "Vendor: "        ,trim(myvendor)
     write (iu,901) "Driver: "        ,trim(mydriver)
     
@@ -677,7 +578,23 @@
     return
     
     end subroutine printDeviceProperties
-#endif  
+#endif 
+
+  subroutine driver_print_raw_sync(iframe)
+   
+   implicit none
+   
+   integer, intent(in) :: iframe
+   
+   if(nprocs==1)then
+     call print_raw_sync(iframe)
+   else
+     call print_parraw_sync(iframe)
+   endif
+   
+  end subroutine driver_print_raw_sync
+  
+  
   subroutine print_raw_sync(iframe)
   
    implicit none
@@ -698,6 +615,17 @@
    close(346)
    
   end subroutine print_raw_sync
+  
+  subroutine print_parraw_sync(iframe)
+  
+   implicit none
+   
+   integer, intent(in) :: iframe
+   integer :: e_io
+   
+   call write_file_raw_par(iframe,e_io)
+   
+  end subroutine print_parraw_sync
 
   subroutine dump_distros_1c_3d
   
@@ -898,6 +826,20 @@
    
   end subroutine print_raw_slice_2c_sync
   
+  subroutine driver_print_vtk_sync(iframe)
+   
+   implicit none
+   
+   integer, intent(in) :: iframe
+   
+   if(nprocs==1)then
+     call print_vtk_sync(iframe)
+   else
+     call print_parvtk_sync(iframe)
+   endif
+   
+  end subroutine driver_print_vtk_sync
+  
   subroutine print_vtk_sync(iframe)
    implicit none
    
@@ -917,18 +859,17 @@
    close(346)
    
   end subroutine print_vtk_sync
-
-  subroutine print_vtk_phionly_sync(iframe)
-    implicit none
-
-    integer, intent(in) :: iframe
-    sevt1 = trim(dir_out) // 'out'//'_'//'phi'// &
-    '_'//trim(write_fmtnumb(iframe)) // '.vti'
-    open(unit=345,file=trim(sevt1), &
-    status='replace',action='write',access='stream',form='unformatted')
-    write(345)head1,ndatavtk(1),phi,footervtk(1)
-    close(345)
-  endsubroutine 
+  
+  subroutine print_parvtk_sync(iframe)
+   implicit none
+   
+   integer, intent(in) :: iframe
+   
+   integer :: e_io
+   
+   call write_file_vtk_par(iframe,e_io)
+   
+  end subroutine print_parvtk_sync
   
   subroutine print_raw_async(iframe)
   
@@ -991,4 +932,305 @@
    close(780) 
    
   end subroutine close_print_async
+  
+  subroutine copystring(oldstring,newstring,lenstring)
+ 
+!***********************************************************************
+!     
+!     LBsoft subroutine to copy one character string into another
+!     originally written in JETSPIN by M. Lauricella et al.
+!     
+!     licensed under the 3-Clause BSD License (BSD-3-Clause)
+!     author: M. Lauricella
+!     last modification July 2018
+!     
+!***********************************************************************
+  
+  implicit none
+  
+  character(len=*), intent(in) :: oldstring
+  character(len=*), intent(out) :: newstring
+  integer, intent(in) :: lenstring
+  
+  integer :: i
+  
+  do i=1,lenstring
+    newstring(i:i)=oldstring(i:i)
+  enddo
+  
+  return
+  
+ end subroutine copystring
+ 
+ function intstr(string,lenstring,laststring)
+ 
+!***********************************************************************
+!     
+!     LBsoft subroutine for extracting integers from a character 
+!     string
+!     originally written in JETSPIN by M. Lauricella et al.
+!     
+!     licensed under the 3-Clause BSD License (BSD-3-Clause)
+!     author: M. Lauricella
+!     last modification July 2018
+!     
+!***********************************************************************
+  
+  implicit none
+  
+  character(len=*), intent(inout) :: string
+  integer, intent(in) :: lenstring
+  integer, intent(out) :: laststring
+  
+  integer :: intstr
+  
+  integer :: j,isn
+  character*1, parameter, dimension(0:9) :: & 
+   n=(/'0','1','2','3','4','5','6','7','8','9'/)
+  logical :: flag,lcount,final
+  character*1 :: ksn
+  character*1, dimension(lenstring) :: word
+  
+  do j=1,lenstring
+    word(j)=string(j:j)
+  enddo
+  
+  isn=1
+  laststring=0
+  ksn='+'
+  intstr=0
+  flag=.false.
+  final=.false.
+  lcount=.false.
+  
+  
+  do while(laststring<lenstring.and.(.not.final))
+    
+    laststring=laststring+1
+    flag=.false.
+    
+    do j=0,9
+      
+      if(n(j)==word(laststring))then
+        
+        intstr=10*intstr+j
+        lcount=.true.
+        flag=.true.
+        
+      endif
+    
+    enddo
+    
+    if(lcount.and.(.not.flag))final=.true.
+    if(flag .and. ksn=='-')isn=-1
+    ksn=word(laststring)
+    
+  enddo
+
+  intstr=isn*intstr
+
+  do j=laststring,lenstring
+    word(j-laststring+1)=word(j)
+  enddo
+  do j=lenstring-laststring+2,lenstring
+    word(j)=' '
+  enddo
+  
+  do j=1,lenstring
+    string(j:j)=word(j)
+  enddo
+  
+  return
+  
+  end function intstr
+  
+  function dblstr(string,lenstring,laststring)
+  
+!***********************************************************************
+!     
+!     LBsoft subroutine for extracting double precisions from a  
+!     character string
+!     originally written in JETSPIN by M. Lauricella et al.
+!     
+!     licensed under the 3-Clause BSD License (BSD-3-Clause)
+!     author: M. Lauricella
+!     last modification July 2018
+!     
+!***********************************************************************
+  
+  implicit none
+  
+  character(len=*), intent(inout) :: string
+  integer, intent(in) :: lenstring
+  integer, intent(out) :: laststring
+  
+  real(kind=db) :: dblstr
+  
+  logical :: flag,ldot,start,final
+  integer :: iexp,idum,i,j,fail
+  real(kind=db) :: sn,sten,sone
+
+  character*1, parameter, dimension(0:9) :: & 
+   n=(/'0','1','2','3','4','5','6','7','8','9'/)
+  character*1, parameter :: dot='.'
+  character*1, parameter :: d='d'
+  character*1, parameter :: e='e'
+  
+  character*1 :: ksn
+  character*1, dimension(lenstring) :: word
+  character(len=lenstring) :: work
+  
+  do j=1,lenstring
+    word(j)=string(j:j)
+  enddo
+  
+  laststring=0
+  sn= ONE
+  ksn='+'
+  sten= TEN
+  sone= ONE
+ 
+  dblstr = ZERO
+  iexp=0
+  idum=0
+  start=.false.
+  ldot=.false.
+  final=.false.
+  
+  do while(laststring<lenstring .and. (.not.final))
+    
+    laststring=laststring+1
+    flag=.false.
+    
+    do j=0,9
+      
+      if(n(j)==word(laststring))then
+        
+        dblstr=sten*dblstr+sone*real(j,kind=db)
+        flag=.true.
+        start=.true.
+      endif
+          
+    enddo
+    
+    
+    if(dot==word(laststring))then
+          
+      flag=.true.
+      sten= ONE
+      ldot=.true.
+      start=.true.
+          
+    endif
+
+    if(flag .and. ksn=='-') sn=- ONE
+    if(ldot)sone= real(sone,kind=db)/ TEN
+    ksn=word(laststring)
+    if(ksn=="D")ksn="d"
+    if(ksn=="E")ksn="e"
+    
+    if(start)then
+      if(d==ksn .or. e==ksn)then
+        do i=1,lenstring-laststring
+          work(i:i)=word(i+laststring)
+        enddo
+        iexp=intstr(work,lenstring-laststring,idum)
+        final=.true.
+      endif
+      if(.not.flag)final=.true.        
+    endif
+  enddo
+  
+  dblstr=sn*dblstr*( TEN ** iexp)
+  laststring=laststring+idum
+  
+  do j=laststring,lenstring
+    word(j-laststring+1)=word(j)
+  enddo
+  do j=lenstring-laststring+2,lenstring
+    word(j)=' '
+  enddo
+  
+  do j=1,lenstring
+    string(j:j)=word(j)
+  enddo
+  
+  return
+  
+ end function dblstr
+ 
+ subroutine get_memory(fout)
+ 
+!***********************************************************************
+!     
+!     LBsoft subroutine for register the memory usage
+!     
+!     licensed under the 3-Clause BSD License (BSD-3-Clause)
+!     modified by: M. Lauricella
+!     last modification July 2018
+!     
+!***********************************************************************
+  
+  use iso_c_binding
+#ifdef MPI
+  use mpi
+#endif   
+  implicit none
+  
+  real(kind=PRC), intent(out) :: fout
+  real(kind=PRC) :: myd(1),myd2(1)
+  integer :: ier
+
+  fout = real( get_mem() ,kind=PRC)
+  
+#ifdef MPI
+  if(nprocs>1)then
+    myd(1)=fout
+    call MPI_ALLREDUCE(myd,myd2,1,MYMPIREAL, &
+     MPI_SUM,MPI_COMM_WORLD,ier)
+    fout=myd2(1)
+  endif
+#endif  
+  
+  return
+  
+ end subroutine get_memory
+ 
+ subroutine get_totram(fout)
+ 
+!***********************************************************************
+!     
+!     LBsoft subroutine for register the memory usage
+!     
+!     licensed under the 3-Clause BSD License (BSD-3-Clause)
+!     modified by: M. Lauricella
+!     last modification July 2018
+!     
+!***********************************************************************
+  
+  use iso_c_binding
+#ifdef MPI
+  use mpi
+#endif    
+  implicit none
+  
+  real(kind=PRC), intent(out) :: fout
+  real(kind=PRC) :: myd(1),myd2(1)
+  integer :: ier
+
+  fout = real( get_totalram() ,kind=PRC)
+  return
+#ifdef MPI
+  if(nprocs>1)then
+    myd(1)=fout
+    call MPI_ALLREDUCE(myd,myd2,1,MYMPIREAL, &
+     MPI_SUM,MPI_COMM_WORLD,ier)
+    fout=myd2(1)
+  endif
+#endif  
+  
+  return
+  
+ end subroutine get_totram
+  
  endmodule
