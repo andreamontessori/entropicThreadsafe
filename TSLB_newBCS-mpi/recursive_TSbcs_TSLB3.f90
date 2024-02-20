@@ -48,26 +48,26 @@ program recursiveTSLB3D
 #endif
 
     !*******************************user parameters and allocations**************************
-        lx=150
-        ly=150
-        lz=600
-        nsteps=10000
-        stamp=1000
+        lx=256
+        ly=256
+        lz=1024
+        nsteps=5000
+        stamp=50000
         stamp2D=100000
         dumpstep=100000000
         fx=0.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
-		    uwall=0.05
-        lprint=.true.
+		uwall=0.05
+        lprint=.false.
         lvtk=.false.
-        lraw=.true.
+        lraw=.false.
         lasync=.false.
         lpbc=.true.
         
         proc_x=1
         proc_y=1
-        proc_z=1
+        proc_z=8
         pbc_x=1  !(0=false 1=true)
         pbc_y=1
         pbc_z=0
@@ -858,7 +858,7 @@ program recursiveTSLB3D
     
     if(myrank==0)then
       write(6,*) 'time elapsed: ', ts2-ts1, ' s of your life time' 
-      write(6,*) 'glups: ',  real(nx)*real(ny)*real(nz)*real(nsteps)/1.0e9/(ts2-ts1)
+      write(6,*) 'glups: ',  real(lx)*real(ly)*real(lz)*real(nsteps)/1.0e9/(ts2-ts1)
     endif
     
     call get_memory(smemory) 
