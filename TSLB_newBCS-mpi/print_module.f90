@@ -611,7 +611,7 @@
    close(345)
    open(unit=346,file=trim(sevt2), &
     status='replace',action='write',access='stream',form='unformatted')
-   write(346)velprint
+   write(346) velprint
    close(346)
    
   end subroutine print_raw_sync

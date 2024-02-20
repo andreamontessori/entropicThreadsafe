@@ -118,14 +118,14 @@ program recursiveTSLB3D
 !                if(gi==lx)isfluid(i,j,k)=0  !right
 !                if(gj==1)isfluid(i,j,k)=0   !front 
 !                if(gj==ly)isfluid(i,j,k)=0  !rear
-                if(gk==1)isfluid(i,j,k)=0   !bottom
-                if(gk==lz)isfluid(i,j,k)=0  !top
+                if(gk==1)  isfluid(i,j,k)=0   !bottom
+                if(gk==lz) isfluid(i,j,k)=0  !top
               enddo
             enddo
           enddo
           
         !setup domain decomposition omong MPI process 
-        !(solo all'inizio)
+        !******************************(solo all'inizio)************************  
         call exchange_isf_sendrecv
         call exchange_isf_intpbc
         call exchange_isf_wait
@@ -136,9 +136,9 @@ program recursiveTSLB3D
         w=0.0_db
         !devo trovare quali processi hanno in carico i nodi lungo il piano gk=1
         gk=1
-        !subchords(1)=(oi-1)/nx
-        !subchords(2)=(oj-1)/ny
-        subchords(3)=(gk-1)/nz
+        !subchords(1)=(gi-1)/nx
+        !subchords(2)=(gj-1)/ny
+        subchords(3)=(gk-1)/nz !!subchord coordinate della decomposizione che ha al suo interno gk=1
         !sono buoni tutti i processi che hanno subchords(3)==coords(3)
         if(subchords(3)==coords(3))then
           do j=1,ny
@@ -165,19 +165,6 @@ program recursiveTSLB3D
           enddo
         endif
         rho=1.0_db  !tot dens
-        
-!        do k=1,nz
-!          gk=nz*coords(3)+k
-!          do j=1,ny
-!            gj=ny*coords(2)+j
-!            do i=1,nx
-!              gi=nx*coords(1)+i
-!              if (lx/3==gi .and. ly/5==gj .and. lz/5==gk)then
-!                rho(i,j,k)=1.2
-!              endif
-!            enddo
-!          enddo
-!        enddo
         
         !rho(nx/2,ny/2,nz-10)=1.2
         !do ll=0,nlinks
@@ -358,9 +345,9 @@ program recursiveTSLB3D
         write(6,*) 'fz',fz
         write(6,*) 'cssq',cssq
         write(6,*) '*******************INPUT data*****************'
-        write(6,*) 'nx',nx
-        write(6,*) 'ny',ny
-        write(6,*) 'ny',nz
+        write(6,*) 'lx',lx
+        write(6,*) 'ly',ly
+        write(6,*) 'ly',lz
         write(6,*) 'lpbc',lpbc
         write(6,*) 'lprint',lprint
         write(6,*) 'lvtk',lvtk
@@ -368,15 +355,8 @@ program recursiveTSLB3D
         write(6,*) 'nsteps',nsteps
         write(6,*) 'stamp',stamp
         write(6,*) 'dumpYN', dumpYN
-        write(6,*) 'max fx',huge(fx)
-        write(6,*) 'max fx',huge(fy)
-        write(6,*) 'max fx',huge(fz)
         write(6,*) '*******************************************'
-        
-!        call get_memory(smemory) 
-!        call get_totram(sram)
-!        call print_memory_registration(6,&
-!          'Occupied memory on HOST at the start','Total HOST memory',smemory,sram)
+        ! info gpu
         call get_memory_gpu(mymemory,totmemory)
         call print_memory_registration_gpu(6,'DEVICE memory occupied at the start', &
         'total DEVICE memory',mymemory,totmemory)
