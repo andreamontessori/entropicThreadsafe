@@ -778,13 +778,12 @@
          call print_raw_sync2D(iframe,ndir(l),npoint(l),service1,service3)
        else
          !questa è chiamata solo dai processi buoni e gli altri li ho esclusi ciclando
-         call print_parraw_sync2D(iframe,ndir(l),npoint(l),service1,service3, &
+         call print_parraw_sync2D(iframe,l,ndir(l),npoint(l),service1,service3, &
           myoffset_plane,lsizes_plane,gsizes_plane)
        endif
        deallocate(service1,service3)
      enddo
    endif
-   
   
    
   end subroutine driver_print_raw_sync2D
@@ -814,18 +813,18 @@
    
   end subroutine print_raw_sync2D
   
-  subroutine print_parraw_sync2D(iframe,mydir,mypoint,service1,service3,&
+  subroutine print_parraw_sync2D(iframe,myid,mydir,mypoint,service1,service3,&
    myoffset_plane,lsizes_plane,gsizes_plane)
   
    implicit none
    
-   integer, intent(in) :: iframe,mydir,mypoint
+   integer, intent(in) :: iframe,myid,mydir,mypoint
    real(4), dimension(:,:,:), allocatable :: service1
    real(4), dimension(:,:,:,:), allocatable :: service3
    integer, dimension(mpid), intent(in) :: myoffset_plane,lsizes_plane,gsizes_plane
    integer :: e_io
    
-   call write_file_raw_par2D(iframe,mydir,mypoint,service1,service3, &
+   call write_file_raw_par2D(iframe,myid,mydir,mypoint,service1,service3, &
     myoffset_plane,lsizes_plane,gsizes_plane,e_io)
    
   end subroutine print_parraw_sync2D

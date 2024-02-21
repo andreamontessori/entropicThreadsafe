@@ -51,9 +51,9 @@ program recursiveTSLB3D
 #endif
 
     !*******************************user parameters and allocations**************************
-        lx=100
-        ly=100
-        lz=300
+        lx=256
+        ly=256
+        lz=1024
         nsteps=5000
         stamp=1000
         stamp2D=1000
@@ -85,38 +85,38 @@ program recursiveTSLB3D
         !!DECIDI DECOMPOSIZIONE MPI
         proc_x=1
         proc_y=1
-        proc_z=2
-        
+        proc_z=1
+#ifdef MPI        
         !leggi decomposizione da riga di comando
-!        narg = command_argument_count()
-!        if (narg /= 3) then
-!          write(6,*) 'error!'
-!          write(6,*) 'the command line should be'
-!          write(6,*) '[executable] [proc_x] [proc_y] [proc_z]'
-!          write(6,*) 'proc_x = decomposition along x'
-!          write(6,*) 'proc_y = decomposition along y'
-!          write(6,*) 'proc_z = decomposition along z'
-!          write(6,*) 'STOP!'
-!          stop
-!        endif
+        narg = command_argument_count()
+        if (narg /= 3) then
+          write(6,*) 'error!'
+          write(6,*) 'the command line should be'
+          write(6,*) '[executable] [proc_x] [proc_y] [proc_z]'
+          write(6,*) 'proc_x = decomposition along x'
+          write(6,*) 'proc_y = decomposition along y'
+          write(6,*) 'proc_z = decomposition along z'
+          write(6,*) 'STOP!'
+          stop
+        endif
   
-!        do i = 1, narg
-!          call getarg(i, arg)
-!          if(i==1)then
-!            call copystring(arg,directive,mxln)
-!             proc_x=intstr(directive,mxln,inumchar)
-!             write(6,*) 'proc_x  = ',proc_x
-!          elseif(i==2)then
-!            call copystring(arg,directive,mxln)
-!             proc_y=intstr(directive,mxln,inumchar)
-!             write(6,*) 'proc_y  = ',proc_y
-!          elseif(i==3)then
-!            call copystring(arg,directive,mxln)
-!             proc_z=intstr(directive,mxln,inumchar)
-!             write(6,*) 'proc_z  = ',proc_z
-!          endif
-!        enddo
-
+        do i = 1, narg
+          call getarg(i, arg)
+          if(i==1)then
+            call copystring(arg,directive,mxln)
+             proc_x=intstr(directive,mxln,inumchar)
+             write(6,*) 'proc_x  = ',proc_x
+          elseif(i==2)then
+            call copystring(arg,directive,mxln)
+             proc_y=intstr(directive,mxln,inumchar)
+             write(6,*) 'proc_y  = ',proc_y
+          elseif(i==3)then
+            call copystring(arg,directive,mxln)
+             proc_z=intstr(directive,mxln,inumchar)
+             write(6,*) 'proc_z  = ',proc_z
+          endif
+        enddo
+#endif
         
         !!!!!!! START MPI!!!!!!!!!!!!!!!!!!!
         call start_mpi
@@ -455,7 +455,7 @@ program recursiveTSLB3D
         call driver_print_raw_sync(iframe)
       endif
       !scrivi i piani 2D
-      !call driver_print_raw_sync2D(iframe2D,nplanes,ndir,npoint)
+      call driver_print_raw_sync2D(iframe2D,nplanes,ndir,npoint)
     endif
     
     ! start diagnostic if requested
@@ -712,7 +712,7 @@ program recursiveTSLB3D
             !***********************************Print on files 2D************************
             if(mod(step,stamp2D).eq.0)then
                 iframe2D=iframe2D+1
-                !call driver_print_raw_sync2D(iframe2D,nplanes,ndir,npoint)
+                call driver_print_raw_sync2D(iframe2D,nplanes,ndir,npoint)
             endif
             if(mod(step,stamp).eq.0 .or. mod(step,stamp2D).eq.0)then
               if(ldiagnostic)call end_timing2("IO","print")

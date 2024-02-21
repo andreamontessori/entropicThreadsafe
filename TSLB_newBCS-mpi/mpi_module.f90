@@ -2448,12 +2448,15 @@
        integer, parameter :: byter4  = 4
        integer, parameter :: byter8  = 8
        integer, parameter :: nbuffsub = 0
-       integer :: filetypesub,imemtype,filetypesubv,fdens,fvel,ierr
+       integer :: filetypesub,imemtype,filetypesubv,ierr
        
        integer, dimension(3) :: memDims,memOffs
        integer, dimension(4) :: velglobalDims,velldims,velmystarts, &
         velmemDims,velmemOffs
-
+#ifdef MPI    
+      integer :: fdens
+      integer :: fvel
+     
     
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!density!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
        
@@ -2461,7 +2464,7 @@
         '_'//trim(write_fmtnumb(iframe)) // '.vti'
        
        
-#ifdef MPI                 
+               
        
        call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(sevt1), &
 			MPI_MODE_CREATE + MPI_MODE_WRONLY, &
@@ -2609,12 +2612,14 @@
        integer, parameter :: byter4  = 4
        integer, parameter :: byter8  = 8
        integer, parameter :: nbuffsub = 0
-       integer :: filetypesub,imemtype,filetypesubv,fdens,fvel,ierr
+       integer :: filetypesub,imemtype,filetypesubv,ierr
        
        integer, dimension(3) :: memDims,memOffs
        integer, dimension(4) :: velglobalDims,velldims,velmystarts, &
         velmemDims,velmemOffs
-
+#ifdef MPI 
+       integer :: fdens
+       integer :: fvel
     
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!density!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
        
@@ -2622,7 +2627,7 @@
         '_'//trim(write_fmtnumb(iframe)) // '.raw'
        
        
-#ifdef MPI                 
+                
        
        call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(sevt1), &
 			MPI_MODE_CREATE + MPI_MODE_WRONLY, &
@@ -2698,7 +2703,7 @@
   
       end subroutine write_file_raw_par      
       
-      subroutine write_file_raw_par2D(iframe,mydir,mypoint,service1,service3, &
+      subroutine write_file_raw_par2D(iframe,myid,mydir,mypoint,service1,service3, &
        myoffset_plane,lsizes_plane,gsizes_plane,e_io)
  
 !***********************************************************************
@@ -2714,7 +2719,7 @@
   
       implicit none
        
-      integer, intent(in) ::iframe,mydir,mypoint
+      integer, intent(in) :: myid,iframe,mydir,mypoint
       real(4), dimension(:,:,:), allocatable :: service1
       real(4), dimension(:,:,:,:), allocatable :: service3
       integer, dimension(mpid), intent(in) :: myoffset_plane,lsizes_plane,gsizes_plane
@@ -2735,9 +2740,11 @@
       integer, dimension(3) :: memDims,memOffs
       integer, dimension(4) :: velglobalDims,velldims,velmystarts, &
        velmemDims,velmemOffs
-       
-       
-#ifdef MPI       
+#ifdef MPI    
+      integer :: fdens
+      integer :: fvel
+      
+   
       
       !qui ci arrivano solo i processi buoni, quelli pupu li ho esclusi prima di chiamare la sub
       
@@ -2770,7 +2777,7 @@
 
       call MPI_TYPE_COMMIT(imemtype,e_io)
 
-      call MPI_FILE_WRITE_ALL(fdens,rhoprint,1,imemtype,MPI_STATUS_IGNORE,e_io)
+      call MPI_FILE_WRITE_ALL(fdens,service1,1,imemtype,MPI_STATUS_IGNORE,e_io)
       
       call MPI_FILE_CLOSE(fdens,e_io)
       
@@ -2814,7 +2821,7 @@
 
       call MPI_TYPE_COMMIT(imemtype,e_io)
 
-      call MPI_FILE_WRITE_ALL(fvel,velprint,1,imemtype,MPI_STATUS_IGNORE,e_io)
+      call MPI_FILE_WRITE_ALL(fvel,service3,1,imemtype,MPI_STATUS_IGNORE,e_io)
       
       call MPI_FILE_CLOSE(fvel, e_io)
       
