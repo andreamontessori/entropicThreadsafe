@@ -63,8 +63,8 @@ program recursiveTSLB3D
         fz=0.0_db*10.0**(-5)
 		uwall=0.05
         lprint=.true.
-        lvtk=.true.
-        lraw=.false.
+        lvtk=.false.
+        lraw=.true.
         lasync=.false.
         lpbc=.true.
         
@@ -453,9 +453,9 @@ program recursiveTSLB3D
       endif
       if(lraw)then
         call driver_print_raw_sync(iframe)
+        !scrivi i piani 2D
+        call driver_print_raw_sync2D(iframe2D,nplanes,ndir,npoint)
       endif
-      !scrivi i piani 2D
-      call driver_print_raw_sync2D(iframe2D,nplanes,ndir,npoint)
     endif
     
     ! start diagnostic if requested
@@ -710,7 +710,7 @@ program recursiveTSLB3D
               endif
             endif
             !***********************************Print on files 2D************************
-            if(mod(step,stamp2D).eq.0)then
+            if(mod(step,stamp2D).eq.0 .and. lraw)then
                 iframe2D=iframe2D+1
                 call driver_print_raw_sync2D(iframe2D,nplanes,ndir,npoint)
             endif
