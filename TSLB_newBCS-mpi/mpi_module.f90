@@ -3,7 +3,8 @@
   
   use vars, only: db,isf,i,j,k,nx,ny,nz,lx,ly,lz,rho,f,isfluid,l,ll,opp,&
    ex,ey,ez,nlinks,filenamevtk,namevarvtk,sevt1,sevt2,dir_out,write_fmtnumb2, &
-   write_fmtnumb,headervtk,nheadervtk,vtkoffset,ndatavtk,footervtk,rhoprint,velprint
+   write_fmtnumb,headervtk,nheadervtk,vtkoffset,ndatavtk,footervtk, &
+   rhoprint,velprint,space_fmtnumb
 #ifdef _OPENACC
     use openacc
 #endif
@@ -2600,8 +2601,6 @@
 #ifdef MPI         
        integer(kind=MPI_OFFSET_KIND) :: tempoffset
 #endif
-       integer :: nns
-       character(len=500) :: sheadervtk
        
        integer :: ioffset
        character(1), parameter :: end_rec = char(10)
@@ -2631,9 +2630,6 @@
                        
       tempoffset=int(0,kind=MPI_OFFSET_KIND)
       
-      sheadervtk=repeat(' ',500)
-      sheadervtk=headervtk(1)
-      nns=nheadervtk(1)
       
       call MPI_Type_create_subarray(3,gsizes,lsizes,myoffset, &
        MPI_ORDER_FORTRAN,MPI_REAL,filetypesub,e_io)
@@ -2668,9 +2664,6 @@
                        
       tempoffset=int(0,kind=MPI_OFFSET_KIND)
       
-      sheadervtk=repeat(' ',500)
-      sheadervtk=headervtk(2)
-      nns=nheadervtk(2)
       
       velglobalDims(1)=3
       velglobalDims(2:4)=gsizes(1:3)
@@ -2704,6 +2697,131 @@
       return
   
       end subroutine write_file_raw_par      
+      
+      subroutine write_file_raw_par2D(iframe,mydir,mypoint,service1,service3, &
+       myoffset_plane,lsizes_plane,gsizes_plane,e_io)
+ 
+!***********************************************************************
+!     
+!     LBsoft subroutine for opening the vtk legacy file
+!     in parallel IO
+!     
+!     licensed under the 3-Clause BSD License (BSD-3-Clause)
+!     author: M. Lauricella
+!     last modification October 2019
+!     
+!***********************************************************************
+  
+      implicit none
+       
+      integer, intent(in) ::iframe,mydir,mypoint
+      real(4), dimension(:,:,:), allocatable :: service1
+      real(4), dimension(:,:,:,:), allocatable :: service3
+      integer, dimension(mpid), intent(in) :: myoffset_plane,lsizes_plane,gsizes_plane
+      integer, intent(out) :: e_io
+#ifdef MPI         
+      integer(kind=MPI_OFFSET_KIND) :: tempoffset
+#endif
+       
+      integer :: ioffset
+      character(1), parameter :: end_rec = char(10)
+      integer, parameter :: bytechar=kind(end_rec)
+      integer, parameter :: byteint = 4
+      integer, parameter :: byter4  = 4
+      integer, parameter :: byter8  = 8
+      integer, parameter :: nbuffsub = 0
+      integer :: filetypesub,imemtype,filetypesubv,fdens,fvel,ierr
+       
+      integer, dimension(3) :: memDims,memOffs
+      integer, dimension(4) :: velglobalDims,velldims,velmystarts, &
+       velmemDims,velmemOffs
+       
+       
+#ifdef MPI       
+      
+      !qui ci arrivano solo i processi buoni, quelli pupu li ho esclusi prima di chiamare la sub
+      
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!density!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+      
+      sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(adjustl(space_fmtnumb(mydir)))// &
+       '_'//trim(adjustl(space_fmtnumb(mypoint)))//'_'//trim(namevarvtk(1))// &
+       '_'//trim(write_fmtnumb(iframe)) // '.raw'           
+       
+      call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(sevt1), &
+			MPI_MODE_CREATE + MPI_MODE_WRONLY, &
+			MPI_INFO_NULL,fdens,e_io)
+                       
+      tempoffset=int(0,kind=MPI_OFFSET_KIND)
+      
+      
+      call MPI_Type_create_subarray(3,gsizes_plane,lsizes_plane,myoffset_plane, &
+       MPI_ORDER_FORTRAN,MPI_REAL,filetypesub,e_io)
+        
+      call MPI_Type_commit(filetypesub, e_io)
+      
+      call MPI_File_Set_View(fdens,tempoffset,MPI_REAL,filetypesub, &
+       "native",MPI_INFO_NULL,e_io)
+      ! We need full local sizes: memDims
+      memDims = lsizes_plane + 2*nbuffsub
+      memOffs = [ nbuffsub, nbuffsub, nbuffsub ]
+  
+      call MPI_TYPE_CREATE_SUBARRAY(3,memDims,lsizes_plane,memOffs, &
+       MPI_ORDER_FORTRAN,MPI_REAL,imemtype,e_io)
+
+      call MPI_TYPE_COMMIT(imemtype,e_io)
+
+      call MPI_FILE_WRITE_ALL(fdens,rhoprint,1,imemtype,MPI_STATUS_IGNORE,e_io)
+      
+      call MPI_FILE_CLOSE(fdens,e_io)
+      
+      
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      
+      sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(adjustl(space_fmtnumb(mydir)))// &
+       '_'//trim(adjustl(space_fmtnumb(mypoint)))//'_'//trim(namevarvtk(2))// &
+       '_'//trim(write_fmtnumb(iframe)) // '.raw'
+      
+      
+      call MPI_FILE_OPEN(MPI_COMM_WORLD,trim(sevt2), &
+                       MPI_MODE_WRONLY + MPI_MODE_CREATE, &
+                       MPI_INFO_NULL,fvel,e_io)
+                       
+                       
+      tempoffset=int(0,kind=MPI_OFFSET_KIND)
+      
+      
+      velglobalDims(1)=3
+      velglobalDims(2:4)=gsizes_plane(1:3)
+      velldims(1)=3
+      velldims(2:4)=lsizes_plane(1:3)
+      velmystarts(1) = 0
+      velmystarts(2:4) = myoffset_plane(1:3)
+  
+      call MPI_Type_create_subarray(4,velglobalDims,velldims,velmystarts, &
+       MPI_ORDER_FORTRAN,MPI_REAL,filetypesubv,e_io)
+        
+      call MPI_Type_commit(filetypesubv, e_io)
+   
+      call MPI_File_Set_View(fvel,tempoffset,MPI_REAL,filetypesubv, &
+        "native",MPI_INFO_NULL,e_io)
+      ! We need full local sizes: memDims
+      velmemDims(1) = vellDims(1)
+      velmemDims(2:4) = vellDims(2:4) + 2*nbuffsub
+      velmemOffs = [ 0, nbuffsub, nbuffsub, nbuffsub ]
+
+      call MPI_TYPE_CREATE_SUBARRAY(4,velmemDims,velldims,velmemOffs, &
+       MPI_ORDER_FORTRAN,MPI_REAL,imemtype,e_io)
+
+      call MPI_TYPE_COMMIT(imemtype,e_io)
+
+      call MPI_FILE_WRITE_ALL(fvel,velprint,1,imemtype,MPI_STATUS_IGNORE,e_io)
+      
+      call MPI_FILE_CLOSE(fvel, e_io)
+      
+#endif                       
+      return
+  
+      end subroutine write_file_raw_par2D      
       
       function GET_COORD_POINT(ii,jj,kk)
      

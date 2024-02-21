@@ -626,6 +626,209 @@
    call write_file_raw_par(iframe,e_io)
    
   end subroutine print_parraw_sync
+  
+  subroutine driver_print_raw_sync2D(iframe,nplanes,ndir,npoint)
+   
+   implicit none
+   
+   integer, intent(in) :: iframe,nplanes
+   integer, dimension(nplanes), intent(in) :: ndir,npoint
+   real(4), dimension(:,:,:), allocatable :: service1
+   real(4), dimension(:,:,:,:), allocatable :: service3
+   integer :: subchords(3),gi,gj,gk
+   integer, dimension(mpid) :: myoffset_plane,lsizes_plane,gsizes_plane
+   logical :: ldoserial
+   
+   if(nprocs==1)then
+     do l=1,nplanes
+       select case(ndir(l))
+         case(1)
+           allocate(service1(1,1:ny,1:nz))
+           do k=1,nz
+             do j=1,ny
+               service1(1,j,k)=rhoprint(npoint(l),j,k)
+             enddo
+           enddo
+           allocate(service3(3,1,1:ny,1:nz))
+           do k=1,nz
+             do j=1,ny
+               service3(1:3,1,j,k)=velprint(1:3,npoint(l),j,k)
+             enddo
+           enddo
+         case(2)
+           allocate(service1(1:nx,1,1:nz))
+           do k=1,nz
+             do i=1,nx
+               service1(i,1,k)=rhoprint(i,npoint(l),k)
+             enddo
+           enddo
+           allocate(service3(3,1:nx,1,1:nz))
+           do k=1,nz
+             do i=1,nx
+               service3(1:3,i,1,k)=velprint(1:3,i,npoint(l),k)
+             enddo
+           enddo
+         case(3)
+           allocate(service1(1:nx,1:ny,1))
+           do j=1,ny
+             do i=1,nx
+               service1(i,j,1)=rhoprint(i,j,npoint(l))
+             enddo
+           enddo
+           allocate(service3(3,1:nx,1,1:nz))
+           do j=1,ny
+             do i=1,nx
+               service3(1:3,i,j,1)=velprint(1:3,i,j,npoint(l))
+             enddo
+           enddo
+         case default
+           call dostop('wrong argument in ndir for 2d plane print: only 1 to 3 is permitted')
+       end select
+       call print_raw_sync2D(iframe,ndir(l),npoint(l),service1,service3)
+       deallocate(service1,service3)
+     enddo
+   else
+     !questo è il caso MPI rognoso
+     !devo travare quali processi hanno in carico il piano ed escludere gli altri
+     !devo far caricare solo dai processi giusti i dati sugli array service1 e service3
+     do l=1,nplanes
+       select case(ndir(l))
+         case(1)
+           !caso perpendicolare a x
+           !devo trovare quali processi hanno in carico i nodi lungo il piano gi=npoint(l)
+           gi=npoint(l)
+           subchords(1)=(gi-1)/nx
+           !sono buoni tutti i processi che hanno subchords(1)==coords(1)
+           !ciclo su tutti gli altri così iniziano a lavorare al prossimo file
+           if(subchords(1).ne.coords(1))cycle
+           !myoffset(1) è il mio offset lungo x del mio sottodominio MPI e mi ridà il valore di i nel sottodominio
+           i=gi-myoffset(1)
+           !setto variabili utili in particolare per MPI-IO
+           !offset in coordinate globali di ogni processo MPI
+           myoffset_plane = [ 0, coords(2)*ny, coords(3)*nz ]
+           lsizes_plane=[ 1, ny, nz ]
+           gsizes_plane=[ 1, ly, lz ]
+           allocate(service1(1,1:ny,1:nz))
+           do k=1,nz
+             do j=1,ny
+               service1(1,j,k)=rhoprint(i,j,k)
+             enddo
+           enddo
+           allocate(service3(3,1,1:ny,1:nz))
+           do k=1,nz
+             do j=1,ny
+               service3(1:3,1,j,k)=velprint(1:3,i,j,k)
+             enddo
+           enddo
+           !se le locali e globali dimensioni lungo y e z sono le stesse
+           !allora un solo processo ha in capo il piano quindi tanto vale fare la stampa seriale 
+           ldoserial=(ny==ly .and. nz==lz)
+         case(2)
+           !caso perpendicolare a y
+           gj=npoint(l)
+           subchords(2)=(gj-1)/ny
+           if(subchords(2).ne.coords(2))cycle
+           j=gj-myoffset(2)
+           myoffset_plane = [ coords(1)*nx, 0, coords(3)*nz ]
+           lsizes_plane=[ nx, 1, nz ]
+           gsizes_plane=[ lx, 1, lz ]
+           allocate(service1(1:nx,1,1:nz))
+           do k=1,nz
+             do i=1,nx
+               service1(i,1,k)=rhoprint(i,j,k)
+             enddo
+           enddo
+           allocate(service3(3,1:nx,1,1:nz))
+           do k=1,nz
+             do i=1,nx
+               service3(1:3,i,1,k)=velprint(1:3,i,j,k)
+             enddo
+           enddo
+           !se le locali e globali dimensioni lungo x e z sono le stesse
+           !allora un solo processo ha in capo il piano quindi tanto vale fare la stampa seriale 
+           ldoserial=(nx==lx .and. nz==lz)
+         case(3)
+           !caso perpendicolare a z
+           gk=npoint(l)
+           subchords(3)=(gk-1)/nz
+           if(subchords(3).ne.coords(3))cycle
+           k=gk-myoffset(3)
+           myoffset_plane = [ coords(1)*nx, coords(2)*ny, 0 ]
+           lsizes_plane=[ nx, ny, 1 ]
+           gsizes_plane=[ lx, ly, 1 ]
+           allocate(service1(1:nx,1:ny,1))
+           do j=1,ny
+             do i=1,nx
+               service1(i,j,1)=rhoprint(i,j,k)
+             enddo
+           enddo
+           allocate(service3(3,1:nx,1,1:nz))
+           do j=1,ny
+             do i=1,nx
+               service3(1:3,i,j,1)=velprint(1:3,i,j,k)
+             enddo
+           enddo
+           !se le locali e globali dimensioni lungo x e y sono le stesse
+           !allora un solo processo ha in capo il piano quindi tanto vale fare la stampa seriale 
+           ldoserial=(nx==lx .and. ny==ly)
+         case default
+           call dostop('wrong argument in ndir for 2d plane print: only 1 to 3 is permitted')
+       end select
+       if(ldoserial)then      
+         call print_raw_sync2D(iframe,ndir(l),npoint(l),service1,service3)
+       else
+         !questa è chiamata solo dai processi buoni e gli altri li ho esclusi ciclando
+         call print_parraw_sync2D(iframe,ndir(l),npoint(l),service1,service3, &
+          myoffset_plane,lsizes_plane,gsizes_plane)
+       endif
+       deallocate(service1,service3)
+     enddo
+   endif
+   
+  
+   
+  end subroutine driver_print_raw_sync2D
+  
+  subroutine print_raw_sync2D(iframe,mydir,mypoint,service1,service3)
+  
+   implicit none
+   
+   integer, intent(in) :: iframe,mydir,mypoint
+   real(4), dimension(:,:,:), allocatable :: service1
+   real(4), dimension(:,:,:,:), allocatable :: service3
+  
+   sevt1 = trim(dir_out) // trim(filenamevtk)//'_'//trim(adjustl(space_fmtnumb(mydir)))// &
+    '_'//trim(adjustl(space_fmtnumb(mypoint)))//'_'//trim(namevarvtk(1))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.raw'
+   sevt2 = trim(dir_out) // trim(filenamevtk)//'_'//trim(adjustl(space_fmtnumb(mydir)))// &
+    '_'//trim(adjustl(space_fmtnumb(mypoint)))//'_'//trim(namevarvtk(2))// &
+    '_'//trim(write_fmtnumb(iframe)) // '.raw'
+   open(unit=345,file=trim(sevt1), &
+    status='replace',action='write',access='stream',form='unformatted')
+   write(345)service1
+   close(345)
+   open(unit=346,file=trim(sevt2), &
+    status='replace',action='write',access='stream',form='unformatted')
+   write(346)service3
+   close(346)
+   
+  end subroutine print_raw_sync2D
+  
+  subroutine print_parraw_sync2D(iframe,mydir,mypoint,service1,service3,&
+   myoffset_plane,lsizes_plane,gsizes_plane)
+  
+   implicit none
+   
+   integer, intent(in) :: iframe,mydir,mypoint
+   real(4), dimension(:,:,:), allocatable :: service1
+   real(4), dimension(:,:,:,:), allocatable :: service3
+   integer, dimension(mpid), intent(in) :: myoffset_plane,lsizes_plane,gsizes_plane
+   integer :: e_io
+   
+   call write_file_raw_par2D(iframe,mydir,mypoint,service1,service3, &
+    myoffset_plane,lsizes_plane,gsizes_plane,e_io)
+   
+  end subroutine print_parraw_sync2D
 
   subroutine dump_distros_1c_3d
   

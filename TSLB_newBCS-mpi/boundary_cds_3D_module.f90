@@ -1239,8 +1239,8 @@ module bcs3D
         
       !devo trovare quali processi hanno in carico i nodi lungo il piano gk=1
       gk=1
-      !subchords(1)=(oi-1)/nx
-      !subchords(2)=(oj-1)/ny
+      !subchords(1)=(gi-1)/nx
+      !subchords(2)=(gj-1)/ny
       subchords(3)=(gk-1)/nz
       !sono buoni tutti i processi che hanno subchords(3)==coords(3)
       if(subchords(3)==coords(3))then

@@ -21,10 +21,13 @@ program recursiveTSLB3D
     
     implicit none
     integer :: dumpYN
-    integer :: dumpstep,subchords(3)
+    integer :: dumpstep,subchords(3),narg,inumchar
     logical :: mydiagnostic
     integer :: tdiagnostic
     real(kind=db) :: smemory,sram
+    
+    integer :: nplanes
+    integer, allocatable, dimension(:) :: ndir,npoint
 
 #ifdef _OPENACC
     integer :: devNum
@@ -48,30 +51,71 @@ program recursiveTSLB3D
 #endif
 
     !*******************************user parameters and allocations**************************
-        lx=256
-        ly=256
-        lz=1024
+        lx=100
+        ly=100
+        lz=300
         nsteps=5000
-        stamp=50000
-        stamp2D=100000
+        stamp=1000
+        stamp2D=1000
         dumpstep=100000000
         fx=0.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
 		uwall=0.05
-        lprint=.false.
-        lvtk=.false.
+        lprint=.true.
+        lvtk=.true.
         lraw=.false.
         lasync=.false.
         lpbc=.true.
         
-        proc_x=1
-        proc_y=1
-        proc_z=8
+        nplanes=3       !numero di piani da stampare
+        allocate(ndir(nplanes),npoint(nplanes))
+        ndir(1)=1       !perpendicolare all'asse x
+        ndir(2)=2       !perpendicolare all'asse y
+        ndir(3)=3       !perpendicolare all'asse z
+        npoint(1)=lx/2  !nodo lungo l'asse x
+        npoint(2)=ly/2  !nodo lungo l'asse y
+        npoint(3)=lz/2  !nodo lungo l'asse z
+        
+        
         pbc_x=1  !(0=false 1=true)
         pbc_y=1
         pbc_z=0
-
+        
+        !!DECIDI DECOMPOSIZIONE MPI
+        proc_x=1
+        proc_y=1
+        proc_z=2
+        
+        !leggi decomposizione da riga di comando
+!        narg = command_argument_count()
+!        if (narg /= 3) then
+!          write(6,*) 'error!'
+!          write(6,*) 'the command line should be'
+!          write(6,*) '[executable] [proc_x] [proc_y] [proc_z]'
+!          write(6,*) 'proc_x = decomposition along x'
+!          write(6,*) 'proc_y = decomposition along y'
+!          write(6,*) 'proc_z = decomposition along z'
+!          write(6,*) 'STOP!'
+!          stop
+!        endif
+  
+!        do i = 1, narg
+!          call getarg(i, arg)
+!          if(i==1)then
+!            call copystring(arg,directive,mxln)
+!             proc_x=intstr(directive,mxln,inumchar)
+!             write(6,*) 'proc_x  = ',proc_x
+!          elseif(i==2)then
+!            call copystring(arg,directive,mxln)
+!             proc_y=intstr(directive,mxln,inumchar)
+!             write(6,*) 'proc_y  = ',proc_y
+!          elseif(i==3)then
+!            call copystring(arg,directive,mxln)
+!             proc_z=intstr(directive,mxln,inumchar)
+!             write(6,*) 'proc_z  = ',proc_z
+!          endif
+!        enddo
 
         
         !!!!!!! START MPI!!!!!!!!!!!!!!!!!!!
@@ -410,6 +454,8 @@ program recursiveTSLB3D
       if(lraw)then
         call driver_print_raw_sync(iframe)
       endif
+      !scrivi i piani 2D
+      !call driver_print_raw_sync2D(iframe2D,nplanes,ndir,npoint)
     endif
     
     ! start diagnostic if requested
@@ -631,11 +677,13 @@ program recursiveTSLB3D
           !call bcs_TSLB_turbojet
           !
         !***********************************Print on files 3D************************
-          if(mod(step,stamp).eq.0 .and. myrank==0)write(6,'(a,i8)')'stamp3D step : ',step
-            if(lprint)then
-              if(mod(step,stamp).eq.0)then
+          if(mod(step,stamp).eq.0 .or. mod(step,stamp2D).eq.0)then
+            if(myrank==0)write(6,'(a,i8)')'stamp step : ',step
+          endif
+          if(lprint)then
+            if(mod(step,stamp).eq.0 .or. mod(step,stamp2D).eq.0)then
                 if(ldiagnostic)call start_timing2("IO","print")
-                iframe=iframe+1
+                
                 !$acc kernels present(rhoprint,velprint,rho,u,v,w) 
                 !$acc loop independent collapse(3)  private(i,j,k)
                 do k=1,nz
@@ -650,24 +698,24 @@ program recursiveTSLB3D
                 enddo
               !$acc end kernels 
               !$acc update host(rhoprint,velprint) 
+            endif
+            
+            if(mod(step,stamp).eq.0)then
+              iframe=iframe+1
               if(lvtk)then
                 call driver_print_vtk_sync(iframe)
               endif
               if(lraw)then
                 call driver_print_raw_sync(iframe)
               endif
-              if(ldiagnostic)call end_timing2("IO","print")
             endif
-          endif
-        !***********************************Print on files 2D************************
-          if(lprint)then
+            !***********************************Print on files 2D************************
             if(mod(step,stamp2D).eq.0)then
-                write(6,'(a,i8)')'stamp2D step : ',step
-                if(ldiagnostic)call start_timing2("IO","print2d")
                 iframe2D=iframe2D+1
-                !$acc update host(rho,u,v,w) 
-                call print_raw_slice_sync(iframe2D)
-                if(ldiagnostic)call end_timing2("IO","print2d")
+                !call driver_print_raw_sync2D(iframe2D,nplanes,ndir,npoint)
+            endif
+            if(mod(step,stamp).eq.0 .or. mod(step,stamp2D).eq.0)then
+              if(ldiagnostic)call end_timing2("IO","print")
             endif
           endif
         !***********************************dump f************************
