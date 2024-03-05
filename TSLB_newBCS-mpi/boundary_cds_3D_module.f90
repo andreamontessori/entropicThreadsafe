@@ -1253,7 +1253,7 @@ module bcs3D
               do i=1,nx
                 gi=nx*coords(1)+i
                 gj=ny*coords(2)+j
-                if((float(gi)-lx/2.0)**2 + (float(gj)-ly/2.0)**2<=10**2)then
+                if((float(gi)-lx/2.0)**2.0 + (float(gj)-ly/2.0)**2.0<=radius**2.0)then
                               !call random_number(rrx)
                               !sto sul piano gk=1
                               gk=1

@@ -8,13 +8,12 @@
 #ifdef _OPENACC
     use openacc
 #endif
-
+   implicit none
 #ifdef MPI
-   use mpi
+   !use mpi
+   include 'mpif.h'
 #endif
 
-  implicit none
-  
   integer :: MYMPIREAL
   integer :: MYMPIINTS
   
@@ -2467,8 +2466,8 @@
                
        
        call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(sevt1), &
-			MPI_MODE_CREATE + MPI_MODE_WRONLY, &
-			MPI_INFO_NULL,fdens,e_io)
+        MPI_MODE_CREATE + MPI_MODE_WRONLY, &
+        MPI_INFO_NULL,fdens,e_io)
                        
       tempoffset=int(0,kind=MPI_OFFSET_KIND)
       
@@ -2630,8 +2629,8 @@
                 
        
        call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(sevt1), &
-			MPI_MODE_CREATE + MPI_MODE_WRONLY, &
-			MPI_INFO_NULL,fdens,e_io)
+        MPI_MODE_CREATE + MPI_MODE_WRONLY, &
+        MPI_INFO_NULL,fdens,e_io)
                        
       tempoffset=int(0,kind=MPI_OFFSET_KIND)
       
@@ -2735,7 +2734,7 @@
       integer, parameter :: byter4  = 4
       integer, parameter :: byter8  = 8
       integer, parameter :: nbuffsub = 0
-      integer :: filetypesub,imemtype,filetypesubv,fdens,fvel,ierr
+      integer :: filetypesub,imemtype,filetypesubv,ierr
        
       integer, dimension(3) :: memDims,memOffs
       integer, dimension(4) :: velglobalDims,velldims,velmystarts, &
@@ -2755,8 +2754,8 @@
        '_'//trim(write_fmtnumb(iframe)) // '.raw'           
        
       call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(sevt1), &
-			MPI_MODE_CREATE + MPI_MODE_WRONLY, &
-			MPI_INFO_NULL,fdens,e_io)
+       MPI_MODE_CREATE + MPI_MODE_WRONLY, &
+       MPI_INFO_NULL,fdens,e_io)
                        
       tempoffset=int(0,kind=MPI_OFFSET_KIND)
       

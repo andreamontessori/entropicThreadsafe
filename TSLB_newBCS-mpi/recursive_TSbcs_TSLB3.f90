@@ -61,7 +61,8 @@ program recursiveTSLB3D
         fx=0.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
         fz=0.0_db*10.0**(-5)
-		uwall=0.05
+        uwall=0.05
+        radius=20.0
         lprint=.true.
         lvtk=.false.
         lraw=.true.
@@ -189,7 +190,7 @@ program recursiveTSLB3D
             gj=ny*coords(2)+j
             do i=1,nx
               gi=nx*coords(1)+i
-              if((float(gi)-lx/2.0)**2 + (float(gj)-ly/2.0)**2<=10**2)then
+              if((float(gi)-lx/2.0)**2.0 + (float(gj)-ly/2.0)**2.0<=radius**2.0)then
                 !call random_number(rrx)
                 !call random_number(rry)
                 !sto sul piano gk=1

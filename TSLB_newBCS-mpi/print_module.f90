@@ -492,7 +492,7 @@
           return
   
     end subroutine print_memory_registration_gpu
-    
+#if 0    
     subroutine print_memory_registration(iu,mybanner,mybanner2,mymemory,totmem)
  
 !***********************************************************************
@@ -531,7 +531,8 @@
   return
   
  end subroutine print_memory_registration
-    !******************************************************************************************************!
+#endif
+ !******************************************************************************************************!
 #ifdef _OPENACC
     subroutine printDeviceProperties(ngpus,dev_Num,dev_Type,iu)
     
@@ -675,7 +676,7 @@
                service1(i,j,1)=rhoprint(i,j,npoint(l))
              enddo
            enddo
-           allocate(service3(3,1:nx,1,1:nz))
+           allocate(service3(3,1:nx,1:ny,1))
            do j=1,ny
              do i=1,nx
                service3(1:3,i,j,1)=velprint(1:3,i,j,npoint(l))
@@ -762,7 +763,7 @@
                service1(i,j,1)=rhoprint(i,j,k)
              enddo
            enddo
-           allocate(service3(3,1:nx,1,1:nz))
+           allocate(service3(3,1:nx,1:ny,1))
            do j=1,ny
              do i=1,nx
                service3(1:3,i,j,1)=velprint(1:3,i,j,k)
@@ -1360,7 +1361,7 @@
   return
   
  end function dblstr
- 
+#if 0 
  subroutine get_memory(fout)
  
 !***********************************************************************
@@ -1375,10 +1376,14 @@
   
   use iso_c_binding
 #ifdef MPI
-  use mpi
+  !use mpi
 #endif   
   implicit none
-  
+    
+#ifdef MPI
+  include 'mpif.h'
+#endif  
+
   real(kind=PRC), intent(out) :: fout
   real(kind=PRC) :: myd(1),myd2(1)
   integer :: ier
@@ -1412,9 +1417,13 @@
   
   use iso_c_binding
 #ifdef MPI
-  use mpi
+  !use mpi
 #endif    
   implicit none
+
+#ifdef MPI
+  include 'mpif.h'
+#endif
   
   real(kind=PRC), intent(out) :: fout
   real(kind=PRC) :: myd(1),myd2(1)
@@ -1434,5 +1443,5 @@
   return
   
  end subroutine get_totram
-  
+#endif  
  endmodule

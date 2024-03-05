@@ -16,8 +16,7 @@
 !***********************************************************************
 #ifdef MPI
  use mpi_template, only : myrank,nprocs
- use mpi
- !include 'mpif.h'
+ !use mpi
 #endif 
 
 #ifdef CUDA
@@ -26,11 +25,14 @@
 
  implicit none 
  
- integer, save :: ier
 #ifndef MPI
  integer, parameter :: nprocs=1
  integer, parameter :: myrank=0
+#else
+ include 'mpif.h'
 #endif 
+ 
+ integer, save :: ier
  
  private
  
