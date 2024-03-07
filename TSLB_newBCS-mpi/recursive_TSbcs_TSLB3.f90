@@ -51,12 +51,12 @@ program recursiveTSLB3D
 #endif
 
     !*******************************user parameters and allocations**************************
-        lx=256
-        ly=256
-        lz=1024
-        nsteps=5000
-        stamp=1000
-        stamp2D=1000
+        lx=400
+        ly=400
+        lz=800
+        nsteps=100000
+        stamp=10000
+        stamp2D=10000
         dumpstep=100000000
         fx=0.0_db*10.0**(-7)
         fy=0.0_db*10.0**(-5)
