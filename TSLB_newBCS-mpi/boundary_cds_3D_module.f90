@@ -1230,114 +1230,6 @@ module bcs3D
         !$acc end kernels
     endsubroutine
     !*****************************************************
-    !*****************************************************
-    subroutine bcs_TSLB_only_z_turbojet_macro
-        
-        implicit none 
-        
-        integer :: subchords(3)
-        
-      !devo trovare quali processi hanno in carico i nodi lungo il piano gk=1
-      gk=1
-      !subchords(1)=(gi-1)/nx
-      !subchords(2)=(gj-1)/ny
-      subchords(3)=(gk-1)/nz
-      !sono buoni tutti i processi che hanno subchords(3)==coords(3)
-      if(subchords(3)==coords(3))then
-        if(mod(step,10).eq.0)then
-            !devo fare update di step che mi serve come seed 
-            !$acc update device(step)
-            !$acc kernels present(w,step,myoffset,coords,nx,ny) 
-            !$acc loop independent collapse(2)  private(i,j,k,gi,gj,gk,rrx)
-            do j=1,ny
-              do i=1,nx
-                gi=nx*coords(1)+i
-                gj=ny*coords(2)+j
-                if((float(gi)-lx/2.0)**2.0 + (float(gj)-ly/2.0)**2.0<=radius**2.0)then
-                              !call random_number(rrx)
-                              !sto sul piano gk=1
-                              gk=1
-                              !myoffset(3) è il mio offset lungo z del mio sottodominio MPI e mi ridà il valore di k nel sottodominio
-                              k=gk-myoffset(3)
-                              !è uno pseudo generatore che da un numero randomico partendo da 4 integer come seed
-                              !devi fare in modo che ogni lattice point ad ogni time step abbia seed diversi
-                              !quindi uso come seed la posizione i j k e il timestep come quarto seed 
-                              !il fatto che tutti i seed siano diversi è perchè può essere chiamata da più threads contemporaneamente
-                              !invece se tu hai un unico seed lo devi mettere in save per tutti i threads e poi dipende da chi chiama prima (dipende dall'ordine di chiamata)
-                    rrx=rand_noseeded(gi,gj,gk,step)		
-                    w(i,j,k)=uwall + 0.004*sqrt(-2.0*log(rrx))*cos(2*3.1415926535897932384626433832795028841971*rrx)
-                endif
-            enddo
-			    enddo
-          !$acc end kernels
-          
-		    endif
-      
-      
-        !$acc kernels present(rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz,myoffset) async
-        !$acc loop independent collapse(2) private(i,j,k,gk)
-        do j=1,ny
-            do i=1,nx
-                !sto sul piano gk=1
-                 gk=1
-                 !myoffset(3) è il mio offset lungo z del mio sottodominio MPI e mi ridà il valore di k nel sottodominio
-                 k=gk-myoffset(3)
-                !south
-                !davanti a me è k+1
-                rho(i,j,k)=rho(i,j,k+1)
-                u(i,j,k)=0.0 !u(i,j,k+1)
-                v(i,j,k)=0.0 !v(i,j,k+1)
-                !w(i,j,k)=w(i,j,k)
-                pxx(i,j,k)=pxx(i,j,k+1)
-                pxy(i,j,k)=pxy(i,j,k+1)
-                pxz(i,j,k)=pxz(i,j,k+1)
-                pyy(i,j,k)=pyy(i,j,k+1)
-                pyz(i,j,k)=pyz(i,j,k+1)
-                pzz(i,j,k)=pzz(i,j,k+1)
-            enddo
-        enddo
-        !$acc end kernels
-      
-      endif
-      
-      !devo trovare quali processi hanno in carico i nodi lungo il piano gk=1
-      gk=lz
-      !subchords(1)=(oi-1)/nx
-      !subchords(2)=(oj-1)/ny
-      subchords(3)=(gk-1)/nz
-      !sono buoni tutti i processi che hanno subchords(3)==coords(3)
-      if(subchords(3)==coords(3))then     
-        !$acc kernels present(rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz,myoffset,lz) async
-        !$acc loop independent collapse(2) private(i,j,k)
-        do j=1,ny
-            do i=1,nx
-                !north
-                !sto sul piano gk=lz
-                !gk=lz
-                !myoffset(3) è il mio offset lungo z del mio sottodominio MPI e mi ridà il valore di k nel sottodominio
-                k=lz-myoffset(3)!gk-myoffset(3)
-                !dietro a me è k-1
-                rho(i,j,k)=rho(i,j,k-1)
-                u(i,j,k)=u(i,j,k-1)
-                v(i,j,k)=v(i,j,k-1)
-                w(i,j,k)=w(i,j,k-1)
-                pxx(i,j,k)=pxx(i,j,k-1)
-                pxy(i,j,k)=pxy(i,j,k-1)
-                pxz(i,j,k)=pxz(i,j,k-1)
-                pyy(i,j,k)=pyy(i,j,k-1)
-                pyz(i,j,k)=pyz(i,j,k-1)
-                pzz(i,j,k)=pzz(i,j,k-1)
-            enddo
-        enddo
-        !$acc end kernels
-      endif
-      
-      !$acc wait
-      
-    endsubroutine bcs_TSLB_only_z_turbojet_macro
-    
-    !*****************************************************
-    !*****************************************************
     subroutine bcs_turbulent_jet_meso
         
         implicit none 
@@ -1355,8 +1247,9 @@ module bcs3D
             !devo fare update di step che mi serve come seed 
             !$acc update device(step)
             !$acc kernels present(w,step,myoffset,coords,nx,ny) 
-            !$acc loop independent collapse(2)  private(i,j,k,gi,gj,gk,rrx)
+            !$acc loop independent private(i,j,k,gi,gj,gk,rrx)
             do j=1,ny
+              !$acc loop independent 
               do i=1,nx
                 gi=nx*coords(1)+i
                 gj=ny*coords(2)+j
@@ -1381,26 +1274,17 @@ module bcs3D
 		    endif
       
       
-        !$acc kernels present(rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz,myoffset) async
-        !$acc loop independent collapse(2) private(i,j,k,gk)
+        !$acc kernels present(rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz,myoffset,f) async
+        !$acc loop independent collapse(2) private(i,j,k,gk,feq,fneq1)
         do j=1,ny
+            !!$acc loop independent 
             do i=1,nx
                 !sto sul piano gk=1
                  gk=1
                  !myoffset(3) è il mio offset lungo z del mio sottodominio MPI e mi ridà il valore di k nel sottodominio
-                 k=gk-myoffset(3)
+                 k=gk-myoffset(3) !mpi set
                 !south
                 !davanti a me è k+1
-!                rho(i,j,k)=rho(i,j,k+1)
-!                u(i,j,k)=0.0 !u(i,j,k+1)
-!                v(i,j,k)=0.0 !v(i,j,k+1)
-!                !w(i,j,k)=w(i,j,k)
-!                pxx(i,j,k)=pxx(i,j,k+1)
-!                pxy(i,j,k)=pxy(i,j,k+1)
-!                pxz(i,j,k)=pxz(i,j,k+1)
-!                pyy(i,j,k)=pyy(i,j,k+1)
-!                pyz(i,j,k)=pyz(i,j,k+1)
-!                pzz(i,j,k)=pzz(i,j,k+1)
                 
                 !5
 				!w(i,j,k)=uwall + 0.02*sqrt(-2.0*log(ranx(ttt)))*cos(2*3.1415926535897932384626433832795028841971*rany(ttt))
@@ -1468,26 +1352,17 @@ module bcs3D
       subchords(3)=(gk-1)/nz
       !sono buoni tutti i processi che hanno subchords(3)==coords(3)
       if(subchords(3)==coords(3))then     
-        !$acc kernels present(rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz,myoffset,lz) async
-        !$acc loop independent collapse(2) private(i,j,k)
+        !$acc kernels present(rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz,myoffset,lz,f) async
+        !$acc loop independent collapse(2) private(i,j,k,feq,fneq1,gk)
         do j=1,ny
+            !!$acc loop independent
             do i=1,nx
                 !north
                 !sto sul piano gk=lz
-                !gk=lz
+                gk=lz
                 !myoffset(3) è il mio offset lungo z del mio sottodominio MPI e mi ridà il valore di k nel sottodominio
-                k=lz-myoffset(3)!gk-myoffset(3)
+                k=gk-myoffset(3)!gk-myoffset(3)
                 !dietro a me è k-1
-!                rho(i,j,k)=rho(i,j,k-1)
-!                u(i,j,k)=u(i,j,k-1)
-!                v(i,j,k)=v(i,j,k-1)
-!                w(i,j,k)=w(i,j,k-1)
-!                pxx(i,j,k)=pxx(i,j,k-1)
-!                pxy(i,j,k)=pxy(i,j,k-1)
-!                pxz(i,j,k)=pxz(i,j,k-1)
-!                pyy(i,j,k)=pyy(i,j,k-1)
-!                pyz(i,j,k)=pyz(i,j,k-1)
-!                pzz(i,j,k)=pzz(i,j,k-1)
                 
                 !6
 				w(i,j,k)=w(i,j,nz-1)
@@ -1547,62 +1422,6 @@ module bcs3D
       endif
       
       !$acc wait
-      
-      
-      !$acc kernels
-        !$acc loop independent 
-            do k=1,nz
-                !$acc loop independent 
-                do j=1,ny
-                    !$acc loop independent 
-                    do i=1,nx
-                        if(isfluid(i,j,k).eq.0)then
-                            ! 0  1   2  3   4   5   6   7    8   9   10  11   12  13   14  15   16   17   18  19  20  21  22  23  24  25  26
-                            !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1,  1, -1,  1, -1, -1,  1,  1, -1/)
-                            !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0,  1  -1, -1,  1, -1,  1, -1,  1/)
-                            !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1,  1, -1,  1, -1,  1, -1, -1,  1/)
-                            f(i+1,j-1,k-1,25)=f(i,j,k,26) !gpc 
-                            f(i-1,j+1,k+1,26)=f(i,j,k,25) !hpc
-
-                            f(i-1,j-1,k+1,23)=f(i,j,k,24) !gpc 
-                            f(i+1,j+1,k-1,24)=f(i,j,k,23) !hpc
-
-                            f(i+1,j-1,k+1,21)=f(i,j,k,22) !gpc 
-                            f(i-1,j+1,k-1,22)=f(i,j,k,21) !hpc
-
-                            f(i+1,j+1,k+1,19)=f(i,j,k,20) !gpc 
-                            f(i-1,j-1,k-1,20)=f(i,j,k,19) !hpc
-
-                            f(i+1,j,k-1,18)=f(i,j,k,17) !gpc 
-                            f(i-1,j,k+1,17)=f(i,j,k,18) !hpc
-
-                            f(i-1,j,k-1,16)=f(i,j,k,15) !gpc 
-                            f(i+1,j,k+1,15)=f(i,j,k,16) !hpc
-
-                            f(i,j-1,k+1,14)=f(i,j,k,13)!gpc 
-                            f(i,j+1,k-1,13)=f(i,j,k,14)!hpc
-                            
-                            f(i,j-1,k-1,12)=f(i,j,k,11)!gpc 
-                            f(i,j+1,k+1,11)=f(i,j,k,12)!hpc
-
-                            f(i-1,j+1,k,10)=f(i,j,k,9)!gpc 
-                            f(i+1,j-1,k,9)=f(i,j,k,10)!hpc
-
-                            f(i-1,j-1,k,8)=f(i,j,k,7)!gpc 
-                            f(i+1,j+1,k,7)=f(i,j,k,8)!hpc
-
-                            f(i,j,k-1,6)=f(i,j,k,5)!gpc 
-                            f(i,j,k+1,5)=f(i,j,k,6)!hpc 
-
-                            f(i,j-1,k,4)=f(i,j,k,3)!gpc 
-                            f(i,j+1,k,3)=f(i,j,k,4)!hpc 
-
-                            f(i-1,j,k,2)=f(i,j,k,1)!gpc 
-                            f(i+1,j,k,1)=f(i,j,k,2)!hpc 
-                        endif
-                    enddo
-                enddo
-            enddo    
       
     endsubroutine bcs_turbulent_jet_meso
     

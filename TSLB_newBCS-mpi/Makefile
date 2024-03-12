@@ -138,15 +138,15 @@ gnu-mpi-double:
 	EX=$(EXP) BINROOT=$(BINROOT) mpi
 
 seq:get_mem.o get_ram.o vars_single_3D_module.o \
-	mpi_module.o profiling_m.o boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
+	mpi_module.o profiling_m.o boundary_cds_3D_module.o lb_kernels_module.o print_module.o recursive_TSbcs_TSLB3.o
 	$(FC) $(LDFLAGS) $(EX) get_mem.o get_ram.o vars_single_3D_module.o \
-	mpi_module.o profiling_m.o boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
+	mpi_module.o profiling_m.o boundary_cds_3D_module.o lb_kernels_module.o print_module.o recursive_TSbcs_TSLB3.o
 #	mv $(EX) $(EXE)
 
 mpi:get_mem.o get_ram.o vars_single_3D_module.o \
-	mpi_module.o profiling_m.o boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
+	mpi_module.o profiling_m.o boundary_cds_3D_module.o lb_kernels_module.o print_module.o recursive_TSbcs_TSLB3.o
 	$(FC) $(LDFLAGS) $(EX) get_mem.o get_ram.o vars_single_3D_module.o \
-	mpi_module.o profiling_m.o boundary_cds_3D_module.o print_module.o recursive_TSbcs_TSLB3.o
+	mpi_module.o profiling_m.o boundary_cds_3D_module.o lb_kernels_module.o print_module.o recursive_TSbcs_TSLB3.o
 #	mv $(EXP) $(EXEP)
 
 get_mem.o:get_mem.c
@@ -166,6 +166,9 @@ profiling_m.o: profiling_m.f90
 
 boundary_cds_3D_module.o:boundary_cds_3D_module.f90
 	$(FC) $(FFLAGS) boundary_cds_3D_module.f90
+
+lb_kernels_module.o:lb_kernels_module.f90
+	$(FC) $(FFLAGS) lb_kernels_module.f90
 
 print_module.o:print_module.f90
 	$(FC) $(FFLAGS) print_module.f90
