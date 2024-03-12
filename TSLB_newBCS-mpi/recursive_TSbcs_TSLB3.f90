@@ -673,7 +673,7 @@ program recursiveTSLB3D
           if(ldiagnostic)call end_timing2("LB","moments")
           ! thread-safe boundary condition setup
           if(ldiagnostic)call start_timing2("LB","bcs_TSLB")
-          call bcs_TSLB_only_z_turbojet
+          call bcs_TSLB_only_z_turbojet_macro
           if(ldiagnostic)call end_timing2("LB","bcs_TSLB")
           !call bcs_TSLB_turbojet
           !
