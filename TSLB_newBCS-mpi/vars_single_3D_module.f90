@@ -39,7 +39,7 @@ module vars
     
     real(kind=db)  :: ts1,ts2,p0g,p1g
     real(kind=db) :: visc_LB,uu,udotc,omega,radius
-    real(kind=db) :: tau,one_ov_nu,fx,fy,fz,temp
+    real(kind=db) :: tau,one_ov_nu,fx,fy,fz,temp,dumpYN
 
     real(kind=db) :: fneq1,feq,feqs,us,vs,ws
     
