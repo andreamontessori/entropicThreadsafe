@@ -1,4 +1,5 @@
 program recursiveTSLB3D
+use mpi_template
 #ifdef _OPENACC
    use openacc
 #endif
@@ -22,7 +23,7 @@ program recursiveTSLB3D
 
    implicit none
    
-   integer :: dumpstep,subchords(3),narg,inumchar
+   integer :: dumpstep,narg,inumchar
    logical :: mydiagnostic
    integer :: tdiagnostic
    real(kind=db) :: smemory,sram
