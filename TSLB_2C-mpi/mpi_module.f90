@@ -4,7 +4,8 @@ module mpi_template
    use vars, only: db,isf,i,j,k,nx,ny,nz,lx,ly,lz,rho,f,isfluid,l,ll,opp,&
       ex,ey,ez,nlinks,filenamevtk,namevarvtk,sevt1,sevt2,dir_out,write_fmtnumb2, &
       write_fmtnumb,headervtk,nheadervtk,vtkoffset,ndatavtk,footervtk, &
-      rhoprint,velprint,space_fmtnumb,nlinks_advc,ex_advc,ey_advc,ez_advc
+      rhoprint,velprint,space_fmtnumb,nlinks_advc,ex_advc,ey_advc,ez_advc, &
+      phi,g
 #ifdef _OPENACC
    use openacc
 #endif
@@ -111,6 +112,8 @@ module mpi_template
    integer, dimension(nlinksmpi), save :: f_reqs_send,f_reqs_recv,f_mpitag
    integer, dimension(nlinksmpi), save :: b_reqs_send,b_reqs_recv,b_mpitag
    integer, dimension(nlinksmpi), save :: i_reqs_send,i_reqs_recv,i_mpitag
+   
+   integer, dimension(nlinksmpi_advc), save :: advc_reqs_send,advc_reqs_recv,advc_mpitag
 
    integer, parameter :: nbuff=2
    logical, parameter :: lbuff=.true.
@@ -287,6 +290,7 @@ contains
          f_mpitag(l) = 500 + l
          b_mpitag(l) = 600 + l
          i_mpitag(l) = 700 + l
+         if(l<=nlinksmpi_advc)advc_mpitag(l) = 800 + l
          temp_coord(1) = coords(1) + exmpi(l)
          temp_coord(2) = coords(2) + eympi(l)
          temp_coord(3) = coords(3) + ezmpi(l)
@@ -1835,7 +1839,7 @@ contains
 
 
    end subroutine setup_mpi
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ADVC!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    subroutine setup_mpi_advc
 
       implicit none
@@ -2252,7 +2256,193 @@ contains
       !$acc end kernels
 
    end subroutine depackaging_buffmpi
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ADVC!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   subroutine exchange_pops_advc_intpbc
 
+      implicit none
+
+      integer :: l,ll,lmio,oi,oj,ok
+      !faccio le pbc per le popolazioni se interne allo stesso processo MPI, lintpbcpop_dir(lmio)=true
+      !occhio se non ci sono popolazioni da mandare lintpbcpop_dir è falso
+      do lmio=1,nlinksmpi_advc
+         if(.not. lintpbcpop_advc_dir(lmio)) cycle
+         !scorro sul numero di popolazioni da prendere per la direzione lmio
+         !$acc kernels present(send_extr,intpbc_dir,num_links_pops,links_pops,f) async
+         !$acc loop independent collapse(3) private(i,j,k,oi,oj,ok,l)
+         !do ll=1,num_links_pops_advc(lmio)
+         !sopra commento perche in d3q7 num_links_pops_advc è sempre 1 sola pops per direzione
+         !ll è sempre 1                    
+         do k=send_extr(5,lmio),send_extr(6,lmio)
+            do j=send_extr(3,lmio),send_extr(4,lmio)
+               do i=send_extr(1,lmio),send_extr(2,lmio)
+                  !!ll è sempre 1 in d3q7 una sola pop per direzione lungo le faccie
+                  !trovo la popolazioni da gestire dalla lista per la direzione lmio
+                  l=links_pops_advc(1,lmio)
+                  oi=i ! destinazione delle periodic bc all'interno dello stesso processo!
+                  oj=j
+                  ok=k
+                  if(intpbc_dir(1,lmio)) oi=mod(oi+nx-1,nx)+1
+                  if(intpbc_dir(2,lmio)) oj=mod(oj+ny-1,ny)+1
+                  if(intpbc_dir(3,lmio)) ok=mod(ok+nz-1,nz)+1
+                  !applico su g del d3q7 le pbc interne
+                  g(oi,oj,ok,l)=g(i,j,k,l)
+               enddo
+            enddo
+         enddo
+         !enddo
+         !$acc end kernels
+      enddo
+
+      !$acc wait
+
+   end subroutine exchange_pops_advc_intpbc
+
+   subroutine exchange_pops_advc_sendrecv
+
+      implicit none
+
+      integer :: l,ll,myoffset,tag,ierr
+
+      do l=1,nlinksmpi_advc
+         !se devo mandare lungo l allora impacchetto
+         if(lsendpop_advc_dir(l))call packaging_advc_buffmpi(l) !! qui impacchetto advc_send_buffmpi
+      enddo
+      !recv_buffmpi=send_buffmpi
+#ifdef MPI
+      do l=1,nlinksmpi_advc
+         ll=(l+1)/2
+         if(lsendpop_advc_dir(l))then
+            myoffset=advc_nbuffmpi_send(l) !!! myoffset ---> legge da advc_nbuffmpi_send(l) che copntiene gli offset per la l-esima direzione
+            !$acc host_data use_device(advc_send_buffmpi)
+            call mpi_isend(advc_send_buffmpi(myoffset),1,datampi_advc(ll),send_dir(l), &
+               advc_mpitag(l),lbecomm,advc_reqs_send(l),ierr)
+            !$acc end host_data
+         endif
+         if(lrecvpop_advc_dir(l))then
+            myoffset=advc_nbuffmpi_recv(l)
+            !$acc host_data use_device(advc_recv_buffmpi)
+            call mpi_irecv(advc_recv_buffmpi(myoffset),1,datampi_advc(ll),recv_dir(l), &
+               advc_mpitag(l),lbecomm,advc_reqs_recv(l),ierr)
+            !$acc end host_data
+         endif
+      enddo
+#endif
+
+
+   end subroutine exchange_pops_advc_sendrecv
+
+   subroutine exchange_pops_advc_wait
+
+      implicit none
+
+      integer :: l,ll,myoffset,tag,ierr
+      integer, dimension(nlinksmpi_advc) :: ierr_send,ierr_recv
+#ifdef MPI
+      integer, dimension(MPI_STATUS_SIZE) :: status_send,status_recv
+#endif
+
+      ierr_send=0
+      ierr_recv=0
+#ifdef MPI
+      do l=1,nlinksmpi_advc
+         ll=(l+1)/2
+         if(lsendpop_advc_dir(l))then
+            call mpi_wait(advc_reqs_send(l),status_send,ierr_send(l))
+         endif
+         if(lrecvpop_advc_dir(l))then
+            call mpi_wait(advc_reqs_recv(l),status_recv,ierr_recv(l))
+         endif
+      enddo
+#endif
+      if(any(ierr_send.ne.0))call doerror(6,'ERROR in mpi_wait send_advc')
+      if(any(ierr_recv.ne.0))call doerror(6,'ERROR in mpi_wait recv_advc')
+
+      do l=1,nlinksmpi_advc
+         if(lrecvpop_advc_dir(l))call depackaging_advc_buffmpi(l)
+      enddo
+
+   end subroutine exchange_pops_advc_wait
+
+   subroutine packaging_advc_buffmpi(lmio)
+
+      implicit none
+
+      integer, intent(in) :: lmio
+      integer :: myoffset
+
+      integer :: i,j,k,l,ll,m1,m2,m3
+
+      integer :: idx
+
+      myoffset=advc_nbuffmpi_send(lmio)
+      m1=send_extr(2,lmio)-send_extr(1,lmio)+1
+      m2=send_extr(4,lmio)-send_extr(3,lmio)+1
+      m3=send_extr(6,lmio)-send_extr(5,lmio)+1
+      !$acc kernels present(send_buffmpi,num_links_pops,links_pops,f,send_extr)
+      !$acc loop independent collapse(3)  private(i,j,k,idx,l,ll)
+      !scorro sul numero di popolazioni da prendere per la direzione lmio
+      !do ll=1,num_links_pops_advc(lmio)
+      !sopra commento perche in d3q7 num_links_pops_advc è sempre 1 sola pops per direzione
+      !ll è sempre 1   
+      do k=send_extr(5,lmio),send_extr(6,lmio)
+         do j=send_extr(3,lmio),send_extr(4,lmio)
+            do i=send_extr(1,lmio),send_extr(2,lmio)
+               ll=1
+               !trovo la popolazioni da gestire dalla lista per la direzione lmio
+               l=links_pops_advc(ll,lmio)
+               !linearizzo con l'ordine naturale e metto nel buffer unico per tutte le direzioni
+               !poi mandero solo i pezzi contigui che mi servono per la data direzione
+               idx=myoffset+(i-send_extr(1,lmio))+(j-send_extr(3,lmio))*m1+(&
+                  k-send_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
+               advc_send_buffmpi(idx)=g(i,j,k,l)
+            enddo
+         enddo
+      enddo
+      !enddo
+      !$acc end kernels
+
+   end subroutine packaging_advc_buffmpi
+
+   subroutine depackaging_advc_buffmpi(lmio)
+
+      implicit none
+
+      integer, intent(in) :: lmio
+      integer :: myoffset
+
+      integer :: i,j,k,l,ll,m1,m2,m3
+
+      integer :: idx
+
+      myoffset=advc_nbuffmpi_recv(lmio)
+      m1=recv_extr(2,lmio)-recv_extr(1,lmio)+1
+      m2=recv_extr(4,lmio)-recv_extr(3,lmio)+1
+      m3=recv_extr(6,lmio)-recv_extr(5,lmio)+1
+      !$acc kernels present(recv_buffmpi,num_links_pops,links_pops,f,recv_extr)
+      !$acc loop independent collapse(3)  private(i,j,k,idx,l,ll)
+      !scorro sul numero di popolazioni da prendere per la direzione lmio
+      !do ll=1,num_links_pops_advc(lmio)
+      !sopra commento perche in d3q7 num_links_pops_advc è sempre 1 sola pops per direzione
+      !ll è sempre 1   
+      do k=recv_extr(5,lmio),recv_extr(6,lmio)
+         do j=recv_extr(3,lmio),recv_extr(4,lmio)
+            do i=recv_extr(1,lmio),recv_extr(2,lmio)
+               ll=1
+               !trovo la popolazioni da gestire dalla lista per la direzione lmio
+               l=links_pops_advc(ll,lmio)
+               !linearizzo con l'ordine naturale e metto nel buffer unico per tutte le direzioni
+               !poi mandero solo i pezzi contigui che mi servono per la data direzione
+               idx=myoffset+(i-recv_extr(1,lmio))+(j-recv_extr(3,lmio))*m1+(&
+                  k-recv_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
+               g(i,j,k,l)=advc_recv_buffmpi(idx)
+            enddo
+         enddo
+      enddo
+      !enddo
+      !$acc end kernels
+
+   end subroutine depackaging_advc_buffmpi
+!*******************************PHI********************************************************************!
    subroutine exchange_float_intpbc
 
       implicit none
@@ -2261,7 +2451,7 @@ contains
 
       do lmio=1,nlinksmpi
          if(.not. lintpbc_dir(lmio))cycle
-         !$acc kernels present(intpbc_dir,rho)
+         !$acc kernels present(intpbc_dir,phi)
          !$acc loop independent collapse(3)  private(i,j,k,oi,oj,ok)
          do k=f_recv_extr(5,lmio),f_recv_extr(6,lmio)
             do j=f_recv_extr(3,lmio),f_recv_extr(4,lmio)
@@ -2272,7 +2462,7 @@ contains
                   if(intpbc_dir(1,lmio))oi=mod(oi+nx-1,nx)+1
                   if(intpbc_dir(2,lmio))oj=mod(oj+ny-1,ny)+1
                   if(intpbc_dir(3,lmio))ok=mod(ok+nz-1,nz)+1
-                  rho(i,j,k)=rho(oi,oj,ok)
+                  phi(i,j,k)=phi(oi,oj,ok)
                enddo
             enddo
          enddo
@@ -2359,7 +2549,7 @@ contains
       m3=f_send_extr(6,lmio)-f_send_extr(5,lmio)+1
       !scorro sul numero di campi da prendere (per scalare = 1)
       ll=1
-      !$acc kernels present(f_send_buffmpi,rho,f_send_extr)
+      !$acc kernels present(f_send_buffmpi,phi,f_send_extr)
       !$acc loop independent collapse(3)  private(i,j,k,idx)
       do k=f_send_extr(5,lmio),f_send_extr(6,lmio)
          do j=f_send_extr(3,lmio),f_send_extr(4,lmio)
@@ -2369,7 +2559,7 @@ contains
                idx=myoffset+(i-f_send_extr(1,lmio))+(j-f_send_extr(3,lmio))*m1+(&
                   k-f_send_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
 
-               f_send_buffmpi(idx)=rho(i,j,k)
+               f_send_buffmpi(idx)=phi(i,j,k)
             enddo
          enddo
       enddo
@@ -2395,7 +2585,7 @@ contains
       m3=f_recv_extr(6,lmio)-f_recv_extr(5,lmio)+1
       !scorro sul numero di campi da prendere (per scalare = 1)
       ll=1
-      !$acc kernels present(f_recv_buffmpi,rho,f_recv_extr)
+      !$acc kernels present(f_recv_buffmpi,phi,f_recv_extr)
       !$acc loop independent collapse(3)  private(i,j,k,idx)
       do k=f_recv_extr(5,lmio),f_recv_extr(6,lmio)
          do j=f_recv_extr(3,lmio),f_recv_extr(4,lmio)
@@ -2405,7 +2595,7 @@ contains
                idx=myoffset+(i-f_recv_extr(1,lmio))+(j-f_recv_extr(3,lmio))*m1+(&
                   k-f_recv_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
 
-               rho(i,j,k)=f_recv_buffmpi(idx)
+               phi(i,j,k)=f_recv_buffmpi(idx)
             enddo
          enddo
       enddo
@@ -2414,7 +2604,7 @@ contains
 
    end subroutine depackaging_float_buffmpi
 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!ISFLUID!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    subroutine exchange_isf_intpbc
 
       implicit none

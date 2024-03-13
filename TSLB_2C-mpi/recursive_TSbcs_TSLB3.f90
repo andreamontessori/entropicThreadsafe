@@ -141,6 +141,8 @@ program recursiveTSLB3D
    allocate(rho(1:nx,1:ny,1:nz),u(1:nx,1:ny,1:nz),v(1:nx,1:ny,1:nz),w(1:nx,1:ny,1:nz))
    allocate(pxx(1:nx,1:ny,1:nz),pxy(1:nx,1:ny,1:nz),pxz(1:nx,1:ny,1:nz),pyy(1:nx,1:ny,1:nz))
    allocate(pyz(1:nx,1:ny,1:nz),pzz(1:nx,1:ny,1:nz))
+   allocate(phi(0:nx+1,0:ny+1,0:nz+1))
+   allocate(g(0:nx+1,0:ny+1,0:nz+1,0:nlinks_advc))
    allocate(isfluid(0:nx+1,0:ny+1,0:nz+1))
    if(lprint)then
       allocate(rhoprint(1:nx,1:ny,1:nz))
@@ -284,6 +286,12 @@ program recursiveTSLB3D
       call moments_TSLB
       if(ldiagnostic)call end_timing2("LB","moments")
       !
+      if(ldiagnostic)call start_timing2("LB","pbcs_phi")
+      call exchange_float_sendrecv
+      call exchange_float_intpbc
+      call exchange_float_wait
+      if(ldiagnostic)call end_timing2("LB","pbcs_phi")
+      !
       !***********************************Print on files 3D************************
       if(mod(step,stamp).eq.0 .or. mod(step,stamp2D).eq.0)then
          if(myrank==0)write(6,'(a,i8)')'stamp step : ',step
@@ -345,6 +353,11 @@ program recursiveTSLB3D
       call exchange_pops_intpbc
       call exchange_pops_wait
       if(ldiagnostic)call end_timing2("LB","pbcs")
+      if(ldiagnostic)call start_timing2("LB","pbcs_advc")
+      call exchange_pops_advc_sendrecv
+      call exchange_pops_advc_intpbc
+      call exchange_pops_advc_wait
+      if(ldiagnostic)call end_timing2("LB","pbcs_advc")
       ! thread-safe boundary condition setup
       if(ldiagnostic)call start_timing2("LB","bcs_TSLB")
       call bcs_turbulent_jet_meso
