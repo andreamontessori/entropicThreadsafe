@@ -53,7 +53,7 @@ program recursiveTSLB3D
         
         allocate(f(0:nx+1,0:ny+1,0:nz+1,0:nlinks),g(0:nx+1,0:ny+1,0:nz+1,0:6))
         allocate(rho(1:nx,1:ny,1:nz),u(1:nx,1:ny,1:nz),v(1:nx,1:ny,1:nz),w(1:nx,1:ny,1:nz))
-		    allocate(normx(1:nx,1:ny,1:nz),normy(1:nx,1:ny,1:nz),normz(1:nx,1:ny,1:nz),phi(1:nx,1:ny,1:nz))
+		allocate(normx(1:nx,1:ny,1:nz),normy(1:nx,1:ny,1:nz),normz(1:nx,1:ny,1:nz),phi(1:nx,1:ny,1:nz))
         allocate(pxx(1:nx,1:ny,1:nz),pxy(1:nx,1:ny,1:nz),pxz(1:nx,1:ny,1:nz),pyy(1:nx,1:ny,1:nz))
         allocate(pyz(1:nx,1:ny,1:nz),pzz(1:nx,1:ny,1:nz))
         allocate(isfluid(1:nx,1:ny,1:nz))

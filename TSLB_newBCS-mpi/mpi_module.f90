@@ -4,7 +4,8 @@ module mpi_template
    use vars, only: db,isf,i,j,k,nx,ny,nz,lx,ly,lz,rho,f,isfluid,l,ll,opp,&
       ex,ey,ez,nlinks,filenamevtk,namevarvtk,sevt1,sevt2,dir_out,write_fmtnumb2, &
       write_fmtnumb,headervtk,nheadervtk,vtkoffset,ndatavtk,footervtk, &
-      rhoprint,velprint,space_fmtnumb
+      rhoprint,velprint,space_fmtnumb,nlinks_advc,ex_advc,ey_advc,ez_advc, &
+      phi,g
 #ifdef _OPENACC
    use openacc
 #endif
@@ -35,12 +36,12 @@ module mpi_template
    integer, allocatable, dimension(:) :: yinidom,yfindom
    integer, allocatable, dimension(:) :: zinidom,zfindom
 
-   integer :: right_dest_x,left_source_x
-   integer :: left_dest_x,right_source_x
-   integer :: up_dest_y,down_source_y
-   integer :: down_dest_y, up_source_y
-   integer :: front_dest_z,rear_source_z
-   integer :: rear_dest_z,front_source_z
+   integer :: right_send_x,left_recv_x
+   integer :: left_send_x,right_recv_x
+   integer :: up_send_y,down_recv_y
+   integer :: down_send_y, up_recv_y
+   integer :: front_send_z,rear_recv_z
+   integer :: rear_send_z,front_recv_z
 
    integer, dimension(mpid) :: myoffset,lsizes,start_idx,gsizes,end_idx
 
@@ -56,49 +57,63 @@ module mpi_template
    integer, dimension(0:nlinksmpi), parameter ::&
       oppmpi=(/0, 2, 1, 4, 3, 6, 5, 8, 7,10, 9,12,11,14,13,16,15,18,17,20,19,22,21,24,23,26,25/)
 
+   integer, parameter :: nlinksmpi_advc=6
 
    integer, save :: nlinks_faces,nlinks_edges,nlinks_corners,nlinks_max
    integer, save :: nfaces,nedges,ncorners
+   integer, save :: nlinks_faces_advc,nlinks_max_advc
    logical, save :: lintbb=.false.
-   integer, dimension(nlinksmpi) :: dest_dir,source_dir
-   logical, dimension(nlinksmpi) :: ldestpop_dir,lsourcepop_dir
-   logical, dimension(nlinksmpi) :: ldest_dir,lsource_dir
+   integer, dimension(nlinksmpi) :: send_dir,recv_dir
+   logical, dimension(nlinksmpi) :: lsendpop_dir,lrecvpop_dir
+   logical, dimension(nlinksmpi) :: lsend_dir,lrecv_dir
    logical, dimension(nlinksmpi) :: lintpbc_dir,lintpbcpop_dir
    logical, dimension(nlinksmpi) :: lintbb_dir
    logical, dimension(3,nlinksmpi) :: intpbc_dir
-   integer, dimension(3,nlinksmpi) :: dest_dir_coord,source_dir_coord
+   integer, dimension(3,nlinksmpi) :: send_dir_coord,recv_dir_coord
+
+   logical, dimension(nlinksmpi_advc) :: lsendpop_advc_dir,lrecvpop_advc_dir
+   logical, dimension(nlinksmpi_advc) :: lintpbcpop_advc_dir
 
    integer, allocatable, save, dimension(:,:) :: links_faces,links_edges, &
-      links_corners,links_pops
-   integer, allocatable, save, dimension(:,:) :: dest_extr,source_extr
-   integer, allocatable, save, dimension(:,:) :: f_dest_extr,f_source_extr
-   integer, allocatable, save, dimension(:,:) :: b_dest_extr,b_source_extr
+      links_corners,links_pops,links_pops_advc
+   integer, allocatable, save, dimension(:,:) :: send_extr,recv_extr
+   integer, allocatable, save, dimension(:,:) :: f_send_extr,f_recv_extr
+   integer, allocatable, save, dimension(:,:) :: b_send_extr,b_recv_extr
 
    integer, save, dimension(nlinksmpi) :: num_extr,f_num_extr,b_num_extr,i_num_extr
    integer, save :: numtot_extr,f_numtot_extr,b_numtot_extr,i_numtot_extr
-   integer, allocatable, save, dimension(:) :: num_links_pops
+   integer, save :: numtot_extr_advc
+   integer, allocatable, save, dimension(:) :: num_links_pops,num_links_pops_advc
 
    integer, dimension(13) :: datampi,f_datampi,b_datampi,i_datampi
    integer, parameter :: num_f_datampi=1
    integer, parameter :: num_b_datampi=1
 
-   real(kind=db), allocatable, save, dimension(:) :: dest_buffmpi,source_buffmpi
-   integer, dimension(nlinksmpi) :: nbuffmpi_dest,nbuffmpi_source
+   integer, save, dimension(nlinksmpi_advc) :: num_extr_advc
+   integer, dimension(3) :: datampi_advc
 
-   real(kind=db), allocatable, save, dimension(:) :: f_dest_buffmpi,f_source_buffmpi
-   integer, dimension(nlinksmpi), save :: f_nbuffmpi_dest,f_nbuffmpi_source
+   real(kind=db), allocatable, save, dimension(:) :: send_buffmpi,recv_buffmpi
+   integer, dimension(nlinksmpi) :: nbuffmpi_send,nbuffmpi_recv
 
-   real(kind=db), allocatable, save, dimension(:) :: b_dest_buffmpi,b_source_buffmpi
-   integer, dimension(nlinksmpi), save :: b_nbuffmpi_dest,b_nbuffmpi_source
+   real(kind=db), allocatable, save, dimension(:) :: advc_send_buffmpi,advc_recv_buffmpi
+   integer, dimension(nlinksmpi_advc) :: advc_nbuffmpi_send,advc_nbuffmpi_recv
 
-   integer(kind=isf), allocatable, save, dimension(:) :: i_dest_buffmpi,i_source_buffmpi
-   integer, dimension(nlinksmpi), save :: i_nbuffmpi_dest,i_nbuffmpi_source
+   real(kind=db), allocatable, save, dimension(:) :: f_send_buffmpi,f_recv_buffmpi
+   integer, dimension(nlinksmpi), save :: f_nbuffmpi_send,f_nbuffmpi_recv
 
-   integer, dimension(nlinksmpi), save :: reqs_dest,reqs_source,mpitag
+   real(kind=db), allocatable, save, dimension(:) :: b_send_buffmpi,b_recv_buffmpi
+   integer, dimension(nlinksmpi), save :: b_nbuffmpi_send,b_nbuffmpi_recv
 
-   integer, dimension(nlinksmpi), save :: f_reqs_dest,f_reqs_source,f_mpitag
-   integer, dimension(nlinksmpi), save :: b_reqs_dest,b_reqs_source,b_mpitag
-   integer, dimension(nlinksmpi), save :: i_reqs_dest,i_reqs_source,i_mpitag
+   integer(kind=isf), allocatable, save, dimension(:) :: i_send_buffmpi,i_recv_buffmpi
+   integer, dimension(nlinksmpi), save :: i_nbuffmpi_send,i_nbuffmpi_recv
+
+   integer, dimension(nlinksmpi), save :: reqs_send,reqs_recv,mpitag
+
+   integer, dimension(nlinksmpi), save :: f_reqs_send,f_reqs_recv,f_mpitag
+   integer, dimension(nlinksmpi), save :: b_reqs_send,b_reqs_recv,b_mpitag
+   integer, dimension(nlinksmpi), save :: i_reqs_send,i_reqs_recv,i_mpitag
+   
+   integer, dimension(nlinksmpi_advc), save :: advc_reqs_send,advc_reqs_recv,advc_mpitag
 
    integer, parameter :: nbuff=2
    logical, parameter :: lbuff=.true.
@@ -138,12 +153,9 @@ contains
 
 !
       integer:: uni,lopp,idrank,oi,oj,ok
-      integer:: ierr, ijlen                    ! mpi variables
+      integer:: ierr, ijlen
+! mpi variables
       character*15 hname
-      character*17 file_name1
-      character*17 file_name2
-      character*17 file_name3
-      character*15 file_name5
       integer,dimension(mpid) :: temp_coord
       logical :: lcheck=.false.
 !
@@ -278,10 +290,11 @@ contains
          f_mpitag(l) = 500 + l
          b_mpitag(l) = 600 + l
          i_mpitag(l) = 700 + l
+         if(l<=nlinksmpi_advc)advc_mpitag(l) = 800 + l
          temp_coord(1) = coords(1) + exmpi(l)
          temp_coord(2) = coords(2) + eympi(l)
          temp_coord(3) = coords(3) + ezmpi(l)
-         !call MPI_Cart_rank(lbecomm, temp_coord, dest_dir(l),ierr)
+         !call MPI_Cart_rank(lbecomm, temp_coord, send_dir(l),ierr)
 
          oi=temp_coord(1)
          oj=temp_coord(2)
@@ -303,15 +316,15 @@ contains
             ok=min(max(ok,0),proc_z-1)
          endif
 
-         dest_dir_coord(1:3,l)=[oi,oj,ok]
-         call MPI_Cart_rank(lbecomm, [oi,oj,ok], dest_dir(l),ierr)
+         send_dir_coord(1:3,l)=[oi,oj,ok]
+         call MPI_Cart_rank(lbecomm, [oi,oj,ok], send_dir(l),ierr)
 
 
          lopp=opp(l)
          temp_coord(1) = coords(1) + exmpi(lopp)
          temp_coord(2) = coords(2) + eympi(lopp)
          temp_coord(3) = coords(3) + ezmpi(lopp)
-         !call MPI_Cart_rank(lbecomm, temp_coord, source_dir(l),ierr)
+         !call MPI_Cart_rank(lbecomm, temp_coord, recv_dir(l),ierr)
 
          oi=temp_coord(1)
          oj=temp_coord(2)
@@ -335,8 +348,8 @@ contains
             ok=min(max(ok,0),proc_z-1)
          endif
 
-         source_dir_coord(1:3,l)=[oi,oj,ok]
-         call MPI_Cart_rank(lbecomm, [oi,oj,ok],source_dir(l),ierr)
+         recv_dir_coord(1:3,l)=[oi,oj,ok]
+         call MPI_Cart_rank(lbecomm, [oi,oj,ok],recv_dir(l),ierr)
 
       enddo
 
@@ -350,19 +363,19 @@ contains
 
       do l=1,nlinksmpi
          !vado sempre a me stesso perche sono il solo processo
-         dest_dir_coord(1:3,l)=coords(1:3)
-         dest_dir(l)=myrank
+         send_dir_coord(1:3,l)=coords(1:3)
+         send_dir(l)=myrank
 
-         source_dir_coord(1:3,l)=coords(1:3)
-         source_dir(l)=myrank
+         recv_dir_coord(1:3,l)=coords(1:3)
+         recv_dir(l)=myrank
       enddo
 
 #endif
       !gestisci se fare o no send e receive (deve andare su nodi diversi e non sfondare il range coords se non periodico)
       do l=1,nlinksmpi
 
-         ldest_dir(l)=(myrank .ne. dest_dir(l))
-         if(ldest_dir(l))then
+         lsend_dir(l)=(myrank .ne. send_dir(l))
+         if(lsend_dir(l))then
             temp_coord(1) = coords(1) + exmpi(l)
             temp_coord(2) = coords(2) + eympi(l)
             temp_coord(3) = coords(3) + ezmpi(l)
@@ -383,12 +396,12 @@ contains
             !se sfondo allora non devo inviare
             if(oi<0 .or. oj<0 .or. ok<0 .or. &
                oi>=proc_x .or. oj>=proc_y .or. ok>=proc_z)then
-               ldest_dir(l)=.false.
+               lsend_dir(l)=.false.
             endif
          endif
 
-         lsource_dir(l)=(myrank .ne. source_dir(l))
-         if(lsource_dir(l))then
+         lrecv_dir(l)=(myrank .ne. recv_dir(l))
+         if(lrecv_dir(l))then
             lopp=opp(l)
             temp_coord(1) = coords(1) + exmpi(lopp)
             temp_coord(2) = coords(2) + eympi(lopp)
@@ -409,7 +422,7 @@ contains
             !se sfondo allora non devo ricevere
             if(oi<0 .or. oj<0 .or. ok<0 .or. &
                oi>=proc_x .or. oj>=proc_y .or. ok>=proc_z)then
-               lsource_dir(l)=.false.
+               lrecv_dir(l)=.false.
             endif
          endif
 
@@ -420,9 +433,9 @@ contains
       call MPI_Barrier(MPI_COMM_WORLD,ierr)
 #endif
 
-      !gestisci se fare o no le pbc interne (deve andare sullo stesso nodo in dest e source e non sfondare il range coords se non periodico)
+      !gestisci se fare o no le pbc interne (deve andare sullo stesso nodo in send e recv e non sfondare il range coords se non periodico)
       do l=1,nlinksmpi
-         lintpbc_dir(l)=((myrank==dest_dir(l)) .and. (myrank==source_dir(l)))
+         lintpbc_dir(l)=((myrank==send_dir(l)) .and. (myrank==recv_dir(l)))
          intpbc_dir(1,l)=.false.
          intpbc_dir(2,l)=.false.
          intpbc_dir(3,l)=.false.
@@ -572,7 +585,7 @@ contains
          do l=1,nlinksmpi
             if(idrank==myrank)then
                write(6,'(a,i4,a,4i3,a,i4,a,i4,2l2,a,3l2)')'Myrank ',myrank,' l ',l,exmpi(l),eympi(l),ezmpi(l),&
-                  ' source ',source_dir(l),' dest ',dest_dir(l),lsource_dir(l),ldest_dir(l),' intpbc ',intpbc_dir(1:3,l)
+                  ' recv ',recv_dir(l),' send ',send_dir(l),lrecv_dir(l),lsend_dir(l),' intpbc ',intpbc_dir(1:3,l)
                call flush(6)
             endif
 #ifdef MPI
@@ -687,12 +700,13 @@ contains
 #ifdef MPI
       call MPI_Barrier(MPI_COMM_WORLD,ierr)
 #endif
+      deallocate(links_faces,links_edges,links_corners)
       !solo se ci sono popolazioni da mandare
-      !allora metti ldestpop_dir e lsourcepop_dir true
+      !allora metti lsendpop_dir e lrecvpop_dir true
       !con d3q19 o d3q15 spesso non devo mandare nulla
       do l=1,nlinksmpi
-         ldestpop_dir(l)=(ldest_dir(l) .and. num_links_pops(l)>0)
-         lsourcepop_dir(l)=(lsource_dir(l) .and. num_links_pops(l)>0)
+         lsendpop_dir(l)=(lsend_dir(l) .and. num_links_pops(l)>0)
+         lrecvpop_dir(l)=(lrecv_dir(l) .and. num_links_pops(l)>0)
       enddo
       !solo se ci sono popolazioni da fare pbc interno lo fai
       do l=1,nlinksmpi
@@ -700,936 +714,936 @@ contains
       enddo
 
       !mi storo gli estremi i j k che devono essere inviati e ricevuti lungo ogni direzione l
-      allocate(dest_extr(6,nlinksmpi))
-      allocate(source_extr(6,nlinksmpi))
-      allocate(f_dest_extr(6,nlinksmpi))
-      allocate(f_source_extr(6,nlinksmpi))
-      allocate(b_dest_extr(6,nlinksmpi))
-      allocate(b_source_extr(6,nlinksmpi))
+      allocate(send_extr(6,nlinksmpi))
+      allocate(recv_extr(6,nlinksmpi))
+      allocate(f_send_extr(6,nlinksmpi))
+      allocate(f_recv_extr(6,nlinksmpi))
+      allocate(b_send_extr(6,nlinksmpi))
+      allocate(b_recv_extr(6,nlinksmpi))
 
       !faces
       do l=1,6
          if(exmpi(l)==1)then
-            dest_extr(1,l)=nx+1
-            dest_extr(2,l)=nx+1
-            dest_extr(3,l)=1
-            dest_extr(4,l)=ny
-            dest_extr(5,l)=1
-            dest_extr(6,l)=nz
+            send_extr(1,l)=nx+1
+            send_extr(2,l)=nx+1
+            send_extr(3,l)=1
+            send_extr(4,l)=ny
+            send_extr(5,l)=1
+            send_extr(6,l)=nz
 
-            source_extr(1,l)=1
-            source_extr(2,l)=1
-            source_extr(3,l)=1
-            source_extr(4,l)=ny
-            source_extr(5,l)=1
-            source_extr(6,l)=nz
+            recv_extr(1,l)=1
+            recv_extr(2,l)=1
+            recv_extr(3,l)=1
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=1
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=nx
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=nx
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=0
-            f_source_extr(2,l)=0
-            f_source_extr(3,l)=1
-            f_source_extr(4,l)=ny
-            f_source_extr(5,l)=1
-            f_source_extr(6,l)=nz
+            f_recv_extr(1,l)=0
+            f_recv_extr(2,l)=0
+            f_recv_extr(3,l)=1
+            f_recv_extr(4,l)=ny
+            f_recv_extr(5,l)=1
+            f_recv_extr(6,l)=nz
 
-            b_dest_extr(1,l)=nx-nbuff+1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=nx-nbuff+1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=1-nbuff
-            b_source_extr(2,l)=0
-            b_source_extr(3,l)=1
-            b_source_extr(4,l)=ny
-            b_source_extr(5,l)=1
-            b_source_extr(6,l)=nz
+            b_recv_extr(1,l)=1-nbuff
+            b_recv_extr(2,l)=0
+            b_recv_extr(3,l)=1
+            b_recv_extr(4,l)=ny
+            b_recv_extr(5,l)=1
+            b_recv_extr(6,l)=nz
          endif
          if(exmpi(l)==-1)then
-            dest_extr(1,l)=0
-            dest_extr(2,l)=0
-            dest_extr(3,l)=1
-            dest_extr(4,l)=ny
-            dest_extr(5,l)=1
-            dest_extr(6,l)=nz
+            send_extr(1,l)=0
+            send_extr(2,l)=0
+            send_extr(3,l)=1
+            send_extr(4,l)=ny
+            send_extr(5,l)=1
+            send_extr(6,l)=nz
 
-            source_extr(1,l)=nx
-            source_extr(2,l)=nx
-            source_extr(3,l)=1
-            source_extr(4,l)=ny
-            source_extr(5,l)=1
-            source_extr(6,l)=nz
+            recv_extr(1,l)=nx
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=1
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=1
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=1
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=1
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=nx+1
-            f_source_extr(2,l)=nx+1
-            f_source_extr(3,l)=1
-            f_source_extr(4,l)=ny
-            f_source_extr(5,l)=1
-            f_source_extr(6,l)=nz
+            f_recv_extr(1,l)=nx+1
+            f_recv_extr(2,l)=nx+1
+            f_recv_extr(3,l)=1
+            f_recv_extr(4,l)=ny
+            f_recv_extr(5,l)=1
+            f_recv_extr(6,l)=nz
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nbuff
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nbuff
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=nx+1
-            b_source_extr(2,l)=nx+nbuff
-            b_source_extr(3,l)=1
-            b_source_extr(4,l)=ny
-            b_source_extr(5,l)=1
-            b_source_extr(6,l)=nz
+            b_recv_extr(1,l)=nx+1
+            b_recv_extr(2,l)=nx+nbuff
+            b_recv_extr(3,l)=1
+            b_recv_extr(4,l)=ny
+            b_recv_extr(5,l)=1
+            b_recv_extr(6,l)=nz
          endif
          if(eympi(l)==1)then
-            dest_extr(1,l)=1
-            dest_extr(2,l)=nx
-            dest_extr(3,l)=ny+1
-            dest_extr(4,l)=ny+1
-            dest_extr(5,l)=1
-            dest_extr(6,l)=nz
+            send_extr(1,l)=1
+            send_extr(2,l)=nx
+            send_extr(3,l)=ny+1
+            send_extr(4,l)=ny+1
+            send_extr(5,l)=1
+            send_extr(6,l)=nz
 
-            source_extr(1,l)=1
-            source_extr(2,l)=nx
-            source_extr(3,l)=1
-            source_extr(4,l)=1
-            source_extr(5,l)=1
-            source_extr(6,l)=nz
+            recv_extr(1,l)=1
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=1
+            recv_extr(4,l)=1
+            recv_extr(5,l)=1
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=ny
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=ny
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=1
-            f_source_extr(2,l)=nx
-            f_source_extr(3,l)=0
-            f_source_extr(4,l)=0
-            f_source_extr(5,l)=1
-            f_source_extr(6,l)=nz
+            f_recv_extr(1,l)=1
+            f_recv_extr(2,l)=nx
+            f_recv_extr(3,l)=0
+            f_recv_extr(4,l)=0
+            f_recv_extr(5,l)=1
+            f_recv_extr(6,l)=nz
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=ny-nbuff+1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=ny-nbuff+1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=1
-            b_source_extr(2,l)=nx
-            b_source_extr(3,l)=1-nbuff
-            b_source_extr(4,l)=0
-            b_source_extr(5,l)=1
-            b_source_extr(6,l)=nz
+            b_recv_extr(1,l)=1
+            b_recv_extr(2,l)=nx
+            b_recv_extr(3,l)=1-nbuff
+            b_recv_extr(4,l)=0
+            b_recv_extr(5,l)=1
+            b_recv_extr(6,l)=nz
          endif
          if(eympi(l)==-1)then
-            dest_extr(1,l)=1
-            dest_extr(2,l)=nx
-            dest_extr(3,l)=0
-            dest_extr(4,l)=0
-            dest_extr(5,l)=1
-            dest_extr(6,l)=nz
+            send_extr(1,l)=1
+            send_extr(2,l)=nx
+            send_extr(3,l)=0
+            send_extr(4,l)=0
+            send_extr(5,l)=1
+            send_extr(6,l)=nz
 
-            source_extr(1,l)=1
-            source_extr(2,l)=nx
-            source_extr(3,l)=ny
-            source_extr(4,l)=ny
-            source_extr(5,l)=1
-            source_extr(6,l)=nz
+            recv_extr(1,l)=1
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=ny
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=1
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=1
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=1
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=1
-            f_source_extr(2,l)=nx
-            f_source_extr(3,l)=ny+1
-            f_source_extr(4,l)=ny+1
-            f_source_extr(5,l)=1
-            f_source_extr(6,l)=nz
+            f_recv_extr(1,l)=1
+            f_recv_extr(2,l)=nx
+            f_recv_extr(3,l)=ny+1
+            f_recv_extr(4,l)=ny+1
+            f_recv_extr(5,l)=1
+            f_recv_extr(6,l)=nz
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=nbuff
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=nbuff
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=1
-            b_source_extr(2,l)=nx
-            b_source_extr(3,l)=ny+1
-            b_source_extr(4,l)=ny+nbuff
-            b_source_extr(5,l)=1
-            b_source_extr(6,l)=nz
+            b_recv_extr(1,l)=1
+            b_recv_extr(2,l)=nx
+            b_recv_extr(3,l)=ny+1
+            b_recv_extr(4,l)=ny+nbuff
+            b_recv_extr(5,l)=1
+            b_recv_extr(6,l)=nz
          endif
          if(ezmpi(l)==1)then
-            dest_extr(1,l)=1
-            dest_extr(2,l)=nx
-            dest_extr(3,l)=1
-            dest_extr(4,l)=ny
-            dest_extr(5,l)=nz+1
-            dest_extr(6,l)=nz+1
+            send_extr(1,l)=1
+            send_extr(2,l)=nx
+            send_extr(3,l)=1
+            send_extr(4,l)=ny
+            send_extr(5,l)=nz+1
+            send_extr(6,l)=nz+1
 
-            source_extr(1,l)=1
-            source_extr(2,l)=nx
-            source_extr(3,l)=1
-            source_extr(4,l)=ny
-            source_extr(5,l)=1
-            source_extr(6,l)=1
+            recv_extr(1,l)=1
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=1
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=1
+            recv_extr(6,l)=1
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=nz
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=nz
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=1
-            f_source_extr(2,l)=nx
-            f_source_extr(3,l)=1
-            f_source_extr(4,l)=ny
-            f_source_extr(5,l)=0
-            f_source_extr(6,l)=0
+            f_recv_extr(1,l)=1
+            f_recv_extr(2,l)=nx
+            f_recv_extr(3,l)=1
+            f_recv_extr(4,l)=ny
+            f_recv_extr(5,l)=0
+            f_recv_extr(6,l)=0
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=nz-nbuff+1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=nz-nbuff+1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=1
-            b_source_extr(2,l)=nx
-            b_source_extr(3,l)=1
-            b_source_extr(4,l)=ny
-            b_source_extr(5,l)=1-nbuff
-            b_source_extr(6,l)=0
+            b_recv_extr(1,l)=1
+            b_recv_extr(2,l)=nx
+            b_recv_extr(3,l)=1
+            b_recv_extr(4,l)=ny
+            b_recv_extr(5,l)=1-nbuff
+            b_recv_extr(6,l)=0
          endif
          if(ezmpi(l)==-1)then
-            dest_extr(1,l)=1
-            dest_extr(2,l)=nx
-            dest_extr(3,l)=1
-            dest_extr(4,l)=ny
-            dest_extr(5,l)=0
-            dest_extr(6,l)=0
+            send_extr(1,l)=1
+            send_extr(2,l)=nx
+            send_extr(3,l)=1
+            send_extr(4,l)=ny
+            send_extr(5,l)=0
+            send_extr(6,l)=0
 
-            source_extr(1,l)=1
-            source_extr(2,l)=nx
-            source_extr(3,l)=1
-            source_extr(4,l)=ny
-            source_extr(5,l)=nz
-            source_extr(6,l)=nz
+            recv_extr(1,l)=1
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=1
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=nz
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=1
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=1
 
-            f_source_extr(1,l)=1
-            f_source_extr(2,l)=nx
-            f_source_extr(3,l)=1
-            f_source_extr(4,l)=ny
-            f_source_extr(5,l)=nz+1
-            f_source_extr(6,l)=nz+1
+            f_recv_extr(1,l)=1
+            f_recv_extr(2,l)=nx
+            f_recv_extr(3,l)=1
+            f_recv_extr(4,l)=ny
+            f_recv_extr(5,l)=nz+1
+            f_recv_extr(6,l)=nz+1
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nbuff
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nbuff
 
-            b_source_extr(1,l)=1
-            b_source_extr(2,l)=nx
-            b_source_extr(3,l)=1
-            b_source_extr(4,l)=ny
-            b_source_extr(5,l)=nz+1
-            b_source_extr(6,l)=nz+nbuff
+            b_recv_extr(1,l)=1
+            b_recv_extr(2,l)=nx
+            b_recv_extr(3,l)=1
+            b_recv_extr(4,l)=ny
+            b_recv_extr(5,l)=nz+1
+            b_recv_extr(6,l)=nz+nbuff
          endif
       enddo
       !edges
       do l=7,18
          !!!!   x   y
          if(exmpi(l)==1 .and. eympi(l)==1)then
-            dest_extr(1,l)=nx+1
-            dest_extr(2,l)=nx+1
-            dest_extr(3,l)=ny+1
-            dest_extr(4,l)=ny+1
-            dest_extr(5,l)=1
-            dest_extr(6,l)=nz
+            send_extr(1,l)=nx+1
+            send_extr(2,l)=nx+1
+            send_extr(3,l)=ny+1
+            send_extr(4,l)=ny+1
+            send_extr(5,l)=1
+            send_extr(6,l)=nz
 
-            source_extr(1,l)=1
-            source_extr(2,l)=1
-            source_extr(3,l)=1
-            source_extr(4,l)=1
-            source_extr(5,l)=1
-            source_extr(6,l)=nz
+            recv_extr(1,l)=1
+            recv_extr(2,l)=1
+            recv_extr(3,l)=1
+            recv_extr(4,l)=1
+            recv_extr(5,l)=1
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=nx
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=ny
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=nx
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=ny
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=0
-            f_source_extr(2,l)=0
-            f_source_extr(3,l)=0
-            f_source_extr(4,l)=0
-            f_source_extr(5,l)=1
-            f_source_extr(6,l)=nz
+            f_recv_extr(1,l)=0
+            f_recv_extr(2,l)=0
+            f_recv_extr(3,l)=0
+            f_recv_extr(4,l)=0
+            f_recv_extr(5,l)=1
+            f_recv_extr(6,l)=nz
 
-            b_dest_extr(1,l)=nx-nbuff+1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=ny-nbuff+1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=nx-nbuff+1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=ny-nbuff+1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=1-nbuff
-            b_source_extr(2,l)=0
-            b_source_extr(3,l)=1-nbuff
-            b_source_extr(4,l)=0
-            b_source_extr(5,l)=1
-            b_source_extr(6,l)=nz
+            b_recv_extr(1,l)=1-nbuff
+            b_recv_extr(2,l)=0
+            b_recv_extr(3,l)=1-nbuff
+            b_recv_extr(4,l)=0
+            b_recv_extr(5,l)=1
+            b_recv_extr(6,l)=nz
          endif
          if(exmpi(l)==-1 .and. eympi(l)==-1)then
-            dest_extr(1,l)=0
-            dest_extr(2,l)=0
-            dest_extr(3,l)=0
-            dest_extr(4,l)=0
-            dest_extr(5,l)=1
-            dest_extr(6,l)=nz
+            send_extr(1,l)=0
+            send_extr(2,l)=0
+            send_extr(3,l)=0
+            send_extr(4,l)=0
+            send_extr(5,l)=1
+            send_extr(6,l)=nz
 
-            source_extr(1,l)=nx
-            source_extr(2,l)=nx
-            source_extr(3,l)=ny
-            source_extr(4,l)=ny
-            source_extr(5,l)=1
-            source_extr(6,l)=nz
+            recv_extr(1,l)=nx
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=ny
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=1
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=1
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=1
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=1
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=1
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=nx+1
-            f_source_extr(2,l)=nx+1
-            f_source_extr(3,l)=ny+1
-            f_source_extr(4,l)=ny+1
-            f_source_extr(5,l)=1
-            f_source_extr(6,l)=nz
+            f_recv_extr(1,l)=nx+1
+            f_recv_extr(2,l)=nx+1
+            f_recv_extr(3,l)=ny+1
+            f_recv_extr(4,l)=ny+1
+            f_recv_extr(5,l)=1
+            f_recv_extr(6,l)=nz
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nbuff
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=nbuff
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nbuff
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=nbuff
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=nx+1
-            b_source_extr(2,l)=nx+nbuff
-            b_source_extr(3,l)=ny+1
-            b_source_extr(4,l)=ny+nbuff
-            b_source_extr(5,l)=1
-            b_source_extr(6,l)=nz
+            b_recv_extr(1,l)=nx+1
+            b_recv_extr(2,l)=nx+nbuff
+            b_recv_extr(3,l)=ny+1
+            b_recv_extr(4,l)=ny+nbuff
+            b_recv_extr(5,l)=1
+            b_recv_extr(6,l)=nz
          endif
          if(exmpi(l)==1 .and. eympi(l)==-1)then
-            dest_extr(1,l)=nx+1
-            dest_extr(2,l)=nx+1
-            dest_extr(3,l)=0
-            dest_extr(4,l)=0
-            dest_extr(5,l)=1
-            dest_extr(6,l)=nz
+            send_extr(1,l)=nx+1
+            send_extr(2,l)=nx+1
+            send_extr(3,l)=0
+            send_extr(4,l)=0
+            send_extr(5,l)=1
+            send_extr(6,l)=nz
 
-            source_extr(1,l)=1
-            source_extr(2,l)=1
-            source_extr(3,l)=ny
-            source_extr(4,l)=ny
-            source_extr(5,l)=1
-            source_extr(6,l)=nz
+            recv_extr(1,l)=1
+            recv_extr(2,l)=1
+            recv_extr(3,l)=ny
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=1
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=nx
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=1
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=nx
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=1
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=0
-            f_source_extr(2,l)=0
-            f_source_extr(3,l)=ny+1
-            f_source_extr(4,l)=ny+1
-            f_source_extr(5,l)=1
-            f_source_extr(6,l)=nz
+            f_recv_extr(1,l)=0
+            f_recv_extr(2,l)=0
+            f_recv_extr(3,l)=ny+1
+            f_recv_extr(4,l)=ny+1
+            f_recv_extr(5,l)=1
+            f_recv_extr(6,l)=nz
 
-            b_dest_extr(1,l)=nx-nbuff+1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=nbuff
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=nx-nbuff+1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=nbuff
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=1-nbuff
-            b_source_extr(2,l)=0
-            b_source_extr(3,l)=ny+1
-            b_source_extr(4,l)=ny+nbuff
-            b_source_extr(5,l)=1
-            b_source_extr(6,l)=nz
+            b_recv_extr(1,l)=1-nbuff
+            b_recv_extr(2,l)=0
+            b_recv_extr(3,l)=ny+1
+            b_recv_extr(4,l)=ny+nbuff
+            b_recv_extr(5,l)=1
+            b_recv_extr(6,l)=nz
          endif
          if(exmpi(l)==-1 .and. eympi(l)==1)then
-            dest_extr(1,l)=0
-            dest_extr(2,l)=0
-            dest_extr(3,l)=ny+1
-            dest_extr(4,l)=ny+1
-            dest_extr(5,l)=1
-            dest_extr(6,l)=nz
+            send_extr(1,l)=0
+            send_extr(2,l)=0
+            send_extr(3,l)=ny+1
+            send_extr(4,l)=ny+1
+            send_extr(5,l)=1
+            send_extr(6,l)=nz
 
-            source_extr(1,l)=nx
-            source_extr(2,l)=nx
-            source_extr(3,l)=1
-            source_extr(4,l)=1
-            source_extr(5,l)=1
-            source_extr(6,l)=nz
+            recv_extr(1,l)=nx
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=1
+            recv_extr(4,l)=1
+            recv_extr(5,l)=1
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=1
-            f_dest_extr(3,l)=ny
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=1
+            f_send_extr(3,l)=ny
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=nx+1
-            f_source_extr(2,l)=nx+1
-            f_source_extr(3,l)=0
-            f_source_extr(4,l)=0
-            f_source_extr(5,l)=1
-            f_source_extr(6,l)=nz
+            f_recv_extr(1,l)=nx+1
+            f_recv_extr(2,l)=nx+1
+            f_recv_extr(3,l)=0
+            f_recv_extr(4,l)=0
+            f_recv_extr(5,l)=1
+            f_recv_extr(6,l)=nz
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nbuff
-            b_dest_extr(3,l)=ny-nbuff+1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nbuff
+            b_send_extr(3,l)=ny-nbuff+1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=nx+1
-            b_source_extr(2,l)=nx+nbuff
-            b_source_extr(3,l)=1-nbuff
-            b_source_extr(4,l)=0
-            b_source_extr(5,l)=1
-            b_source_extr(6,l)=nz
+            b_recv_extr(1,l)=nx+1
+            b_recv_extr(2,l)=nx+nbuff
+            b_recv_extr(3,l)=1-nbuff
+            b_recv_extr(4,l)=0
+            b_recv_extr(5,l)=1
+            b_recv_extr(6,l)=nz
          endif
          !!!!   x   z
          if(exmpi(l)==1 .and. ezmpi(l)==1)then
-            dest_extr(1,l)=nx+1
-            dest_extr(2,l)=nx+1
-            dest_extr(3,l)=1
-            dest_extr(4,l)=ny
-            dest_extr(5,l)=nz+1
-            dest_extr(6,l)=nz+1
+            send_extr(1,l)=nx+1
+            send_extr(2,l)=nx+1
+            send_extr(3,l)=1
+            send_extr(4,l)=ny
+            send_extr(5,l)=nz+1
+            send_extr(6,l)=nz+1
 
-            source_extr(1,l)=1
-            source_extr(2,l)=1
-            source_extr(3,l)=1
-            source_extr(4,l)=ny
-            source_extr(5,l)=1
-            source_extr(6,l)=1
+            recv_extr(1,l)=1
+            recv_extr(2,l)=1
+            recv_extr(3,l)=1
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=1
+            recv_extr(6,l)=1
 
-            f_dest_extr(1,l)=nx
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=nz
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=nx
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=nz
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=0
-            f_source_extr(2,l)=0
-            f_source_extr(3,l)=1
-            f_source_extr(4,l)=ny
-            f_source_extr(5,l)=0
-            f_source_extr(6,l)=0
+            f_recv_extr(1,l)=0
+            f_recv_extr(2,l)=0
+            f_recv_extr(3,l)=1
+            f_recv_extr(4,l)=ny
+            f_recv_extr(5,l)=0
+            f_recv_extr(6,l)=0
 
-            b_dest_extr(1,l)=nx-nbuff+1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=nz-nbuff+1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=nx-nbuff+1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=nz-nbuff+1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=1-nbuff
-            b_source_extr(2,l)=0
-            b_source_extr(3,l)=1
-            b_source_extr(4,l)=ny
-            b_source_extr(5,l)=1-nbuff
-            b_source_extr(6,l)=0
+            b_recv_extr(1,l)=1-nbuff
+            b_recv_extr(2,l)=0
+            b_recv_extr(3,l)=1
+            b_recv_extr(4,l)=ny
+            b_recv_extr(5,l)=1-nbuff
+            b_recv_extr(6,l)=0
          endif
          if(exmpi(l)==-1 .and. ezmpi(l)==-1)then
-            dest_extr(1,l)=0
-            dest_extr(2,l)=0
-            dest_extr(3,l)=1
-            dest_extr(4,l)=ny
-            dest_extr(5,l)=0
-            dest_extr(6,l)=0
+            send_extr(1,l)=0
+            send_extr(2,l)=0
+            send_extr(3,l)=1
+            send_extr(4,l)=ny
+            send_extr(5,l)=0
+            send_extr(6,l)=0
 
-            source_extr(1,l)=nx
-            source_extr(2,l)=nx
-            source_extr(3,l)=1
-            source_extr(4,l)=ny
-            source_extr(5,l)=nz
-            source_extr(6,l)=nz
+            recv_extr(1,l)=nx
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=1
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=nz
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=1
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=1
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=1
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=1
 
-            f_source_extr(1,l)=nx+1
-            f_source_extr(2,l)=nx+1
-            f_source_extr(3,l)=1
-            f_source_extr(4,l)=ny
-            f_source_extr(5,l)=nz+1
-            f_source_extr(6,l)=nz+1
+            f_recv_extr(1,l)=nx+1
+            f_recv_extr(2,l)=nx+1
+            f_recv_extr(3,l)=1
+            f_recv_extr(4,l)=ny
+            f_recv_extr(5,l)=nz+1
+            f_recv_extr(6,l)=nz+1
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nbuff
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nbuff
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nbuff
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nbuff
 
-            b_source_extr(1,l)=nx+1
-            b_source_extr(2,l)=nx+nbuff
-            b_source_extr(3,l)=1
-            b_source_extr(4,l)=ny
-            b_source_extr(5,l)=nz+1
-            b_source_extr(6,l)=nz+nbuff
+            b_recv_extr(1,l)=nx+1
+            b_recv_extr(2,l)=nx+nbuff
+            b_recv_extr(3,l)=1
+            b_recv_extr(4,l)=ny
+            b_recv_extr(5,l)=nz+1
+            b_recv_extr(6,l)=nz+nbuff
          endif
          if(exmpi(l)==1 .and. ezmpi(l)==-1)then
-            dest_extr(1,l)=nx+1
-            dest_extr(2,l)=nx+1
-            dest_extr(3,l)=1
-            dest_extr(4,l)=ny
-            dest_extr(5,l)=0
-            dest_extr(6,l)=0
+            send_extr(1,l)=nx+1
+            send_extr(2,l)=nx+1
+            send_extr(3,l)=1
+            send_extr(4,l)=ny
+            send_extr(5,l)=0
+            send_extr(6,l)=0
 
-            source_extr(1,l)=1
-            source_extr(2,l)=1
-            source_extr(3,l)=1
-            source_extr(4,l)=ny
-            source_extr(5,l)=nz
-            source_extr(6,l)=nz
+            recv_extr(1,l)=1
+            recv_extr(2,l)=1
+            recv_extr(3,l)=1
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=nz
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=nx
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=1
+            f_send_extr(1,l)=nx
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=1
 
-            f_source_extr(1,l)=0
-            f_source_extr(2,l)=0
-            f_source_extr(3,l)=1
-            f_source_extr(4,l)=ny
-            f_source_extr(5,l)=nz+1
-            f_source_extr(6,l)=nz+1
+            f_recv_extr(1,l)=0
+            f_recv_extr(2,l)=0
+            f_recv_extr(3,l)=1
+            f_recv_extr(4,l)=ny
+            f_recv_extr(5,l)=nz+1
+            f_recv_extr(6,l)=nz+1
 
-            b_dest_extr(1,l)=nx-nbuff+1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nbuff
+            b_send_extr(1,l)=nx-nbuff+1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nbuff
 
-            b_source_extr(1,l)=1-nbuff
-            b_source_extr(2,l)=0
-            b_source_extr(3,l)=1
-            b_source_extr(4,l)=ny
-            b_source_extr(5,l)=nz+1
-            b_source_extr(6,l)=nz+nbuff
+            b_recv_extr(1,l)=1-nbuff
+            b_recv_extr(2,l)=0
+            b_recv_extr(3,l)=1
+            b_recv_extr(4,l)=ny
+            b_recv_extr(5,l)=nz+1
+            b_recv_extr(6,l)=nz+nbuff
          endif
          if(exmpi(l)==-1 .and. ezmpi(l)==1)then
-            dest_extr(1,l)=0
-            dest_extr(2,l)=0
-            dest_extr(3,l)=1
-            dest_extr(4,l)=ny
-            dest_extr(5,l)=nz+1
-            dest_extr(6,l)=nz+1
+            send_extr(1,l)=0
+            send_extr(2,l)=0
+            send_extr(3,l)=1
+            send_extr(4,l)=ny
+            send_extr(5,l)=nz+1
+            send_extr(6,l)=nz+1
 
-            source_extr(1,l)=nx
-            source_extr(2,l)=nx
-            source_extr(3,l)=1
-            source_extr(4,l)=ny
-            source_extr(5,l)=1
-            source_extr(6,l)=1
+            recv_extr(1,l)=nx
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=1
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=1
+            recv_extr(6,l)=1
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=1
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=nz
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=1
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=nz
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=nx+1
-            f_source_extr(2,l)=nx+1
-            f_source_extr(3,l)=1
-            f_source_extr(4,l)=ny
-            f_source_extr(5,l)=0
-            f_source_extr(6,l)=0
+            f_recv_extr(1,l)=nx+1
+            f_recv_extr(2,l)=nx+1
+            f_recv_extr(3,l)=1
+            f_recv_extr(4,l)=ny
+            f_recv_extr(5,l)=0
+            f_recv_extr(6,l)=0
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nbuff
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=nz-nbuff+1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nbuff
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=nz-nbuff+1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=nx+1
-            b_source_extr(2,l)=nx+nbuff
-            b_source_extr(3,l)=1
-            b_source_extr(4,l)=ny
-            b_source_extr(5,l)=1-nbuff
-            b_source_extr(6,l)=0
+            b_recv_extr(1,l)=nx+1
+            b_recv_extr(2,l)=nx+nbuff
+            b_recv_extr(3,l)=1
+            b_recv_extr(4,l)=ny
+            b_recv_extr(5,l)=1-nbuff
+            b_recv_extr(6,l)=0
          endif
          !!!!   y   z
          if(eympi(l)==1 .and. ezmpi(l)==1)then
-            dest_extr(1,l)=1
-            dest_extr(2,l)=nx
-            dest_extr(3,l)=ny+1
-            dest_extr(4,l)=ny+1
-            dest_extr(5,l)=nz+1
-            dest_extr(6,l)=nz+1
+            send_extr(1,l)=1
+            send_extr(2,l)=nx
+            send_extr(3,l)=ny+1
+            send_extr(4,l)=ny+1
+            send_extr(5,l)=nz+1
+            send_extr(6,l)=nz+1
 
-            source_extr(1,l)=1
-            source_extr(2,l)=nx
-            source_extr(3,l)=1
-            source_extr(4,l)=1
-            source_extr(5,l)=1
-            source_extr(6,l)=1
+            recv_extr(1,l)=1
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=1
+            recv_extr(4,l)=1
+            recv_extr(5,l)=1
+            recv_extr(6,l)=1
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=ny
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=nz
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=ny
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=nz
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=1
-            f_source_extr(2,l)=nx
-            f_source_extr(3,l)=0
-            f_source_extr(4,l)=0
-            f_source_extr(5,l)=0
-            f_source_extr(6,l)=0
+            f_recv_extr(1,l)=1
+            f_recv_extr(2,l)=nx
+            f_recv_extr(3,l)=0
+            f_recv_extr(4,l)=0
+            f_recv_extr(5,l)=0
+            f_recv_extr(6,l)=0
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=ny-nbuff+1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=nz-nbuff+1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=ny-nbuff+1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=nz-nbuff+1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=1
-            b_source_extr(2,l)=nx
-            b_source_extr(3,l)=1-nbuff
-            b_source_extr(4,l)=0
-            b_source_extr(5,l)=1-nbuff
-            b_source_extr(6,l)=0
+            b_recv_extr(1,l)=1
+            b_recv_extr(2,l)=nx
+            b_recv_extr(3,l)=1-nbuff
+            b_recv_extr(4,l)=0
+            b_recv_extr(5,l)=1-nbuff
+            b_recv_extr(6,l)=0
          endif
          if(eympi(l)==-1 .and. ezmpi(l)==-1)then
-            dest_extr(1,l)=1
-            dest_extr(2,l)=nx
-            dest_extr(3,l)=0
-            dest_extr(4,l)=0
-            dest_extr(5,l)=0
-            dest_extr(6,l)=0
+            send_extr(1,l)=1
+            send_extr(2,l)=nx
+            send_extr(3,l)=0
+            send_extr(4,l)=0
+            send_extr(5,l)=0
+            send_extr(6,l)=0
 
-            source_extr(1,l)=1
-            source_extr(2,l)=nx
-            source_extr(3,l)=ny
-            source_extr(4,l)=ny
-            source_extr(5,l)=nz
-            source_extr(6,l)=nz
+            recv_extr(1,l)=1
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=ny
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=nz
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=1
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=1
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=1
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=1
 
-            f_source_extr(1,l)=1
-            f_source_extr(2,l)=nx
-            f_source_extr(3,l)=ny+1
-            f_source_extr(4,l)=ny+1
-            f_source_extr(5,l)=nz+1
-            f_source_extr(6,l)=nz+1
+            f_recv_extr(1,l)=1
+            f_recv_extr(2,l)=nx
+            f_recv_extr(3,l)=ny+1
+            f_recv_extr(4,l)=ny+1
+            f_recv_extr(5,l)=nz+1
+            f_recv_extr(6,l)=nz+1
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=nbuff
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nbuff
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=nbuff
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nbuff
 
-            b_source_extr(1,l)=1
-            b_source_extr(2,l)=nx
-            b_source_extr(3,l)=ny+1
-            b_source_extr(4,l)=ny+nbuff
-            b_source_extr(5,l)=nz+1
-            b_source_extr(6,l)=nz+nbuff
+            b_recv_extr(1,l)=1
+            b_recv_extr(2,l)=nx
+            b_recv_extr(3,l)=ny+1
+            b_recv_extr(4,l)=ny+nbuff
+            b_recv_extr(5,l)=nz+1
+            b_recv_extr(6,l)=nz+nbuff
          endif
          if(eympi(l)==1 .and. ezmpi(l)==-1)then
-            dest_extr(1,l)=1
-            dest_extr(2,l)=nx
-            dest_extr(3,l)=ny+1
-            dest_extr(4,l)=ny+1
-            dest_extr(5,l)=0
-            dest_extr(6,l)=0
+            send_extr(1,l)=1
+            send_extr(2,l)=nx
+            send_extr(3,l)=ny+1
+            send_extr(4,l)=ny+1
+            send_extr(5,l)=0
+            send_extr(6,l)=0
 
-            source_extr(1,l)=1
-            source_extr(2,l)=nx
-            source_extr(3,l)=1
-            source_extr(4,l)=1
-            source_extr(5,l)=nz
-            source_extr(6,l)=nz
+            recv_extr(1,l)=1
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=1
+            recv_extr(4,l)=1
+            recv_extr(5,l)=nz
+            recv_extr(6,l)=nz
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=ny
-            f_dest_extr(4,l)=ny
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=1
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=ny
+            f_send_extr(4,l)=ny
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=1
 
-            f_source_extr(1,l)=1
-            f_source_extr(2,l)=nx
-            f_source_extr(3,l)=0
-            f_source_extr(4,l)=0
-            f_source_extr(5,l)=nz+1
-            f_source_extr(6,l)=nz+1
+            f_recv_extr(1,l)=1
+            f_recv_extr(2,l)=nx
+            f_recv_extr(3,l)=0
+            f_recv_extr(4,l)=0
+            f_recv_extr(5,l)=nz+1
+            f_recv_extr(6,l)=nz+1
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=ny-nbuff+1
-            b_dest_extr(4,l)=ny
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nbuff
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=ny-nbuff+1
+            b_send_extr(4,l)=ny
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nbuff
 
-            b_source_extr(1,l)=1
-            b_source_extr(2,l)=nx
-            b_source_extr(3,l)=1-nbuff
-            b_source_extr(4,l)=0
-            b_source_extr(5,l)=nz+1
-            b_source_extr(6,l)=nz+nbuff
+            b_recv_extr(1,l)=1
+            b_recv_extr(2,l)=nx
+            b_recv_extr(3,l)=1-nbuff
+            b_recv_extr(4,l)=0
+            b_recv_extr(5,l)=nz+1
+            b_recv_extr(6,l)=nz+nbuff
          endif
          if(eympi(l)==-1 .and. ezmpi(l)==1)then
-            dest_extr(1,l)=1
-            dest_extr(2,l)=nx
-            dest_extr(3,l)=0
-            dest_extr(4,l)=0
-            dest_extr(5,l)=nz+1
-            dest_extr(6,l)=nz+1
+            send_extr(1,l)=1
+            send_extr(2,l)=nx
+            send_extr(3,l)=0
+            send_extr(4,l)=0
+            send_extr(5,l)=nz+1
+            send_extr(6,l)=nz+1
 
-            source_extr(1,l)=1
-            source_extr(2,l)=nx
-            source_extr(3,l)=ny
-            source_extr(4,l)=ny
-            source_extr(5,l)=1
-            source_extr(6,l)=1
+            recv_extr(1,l)=1
+            recv_extr(2,l)=nx
+            recv_extr(3,l)=ny
+            recv_extr(4,l)=ny
+            recv_extr(5,l)=1
+            recv_extr(6,l)=1
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=nx
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=1
-            f_dest_extr(5,l)=nz
-            f_dest_extr(6,l)=nz
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=nx
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=1
+            f_send_extr(5,l)=nz
+            f_send_extr(6,l)=nz
 
-            f_source_extr(1,l)=1
-            f_source_extr(2,l)=nx
-            f_source_extr(3,l)=ny+1
-            f_source_extr(4,l)=ny+1
-            f_source_extr(5,l)=0
-            f_source_extr(6,l)=0
+            f_recv_extr(1,l)=1
+            f_recv_extr(2,l)=nx
+            f_recv_extr(3,l)=ny+1
+            f_recv_extr(4,l)=ny+1
+            f_recv_extr(5,l)=0
+            f_recv_extr(6,l)=0
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nx
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=nbuff
-            b_dest_extr(5,l)=nz-nbuff+1
-            b_dest_extr(6,l)=nz
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nx
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=nbuff
+            b_send_extr(5,l)=nz-nbuff+1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(1,l)=1
-            b_source_extr(2,l)=nx
-            b_source_extr(3,l)=ny+1
-            b_source_extr(4,l)=ny+nbuff
-            b_source_extr(5,l)=1-nbuff
-            b_source_extr(6,l)=0
+            b_recv_extr(1,l)=1
+            b_recv_extr(2,l)=nx
+            b_recv_extr(3,l)=ny+1
+            b_recv_extr(4,l)=ny+nbuff
+            b_recv_extr(5,l)=1-nbuff
+            b_recv_extr(6,l)=0
          endif
 
       enddo
       !corner
       do l=19,nlinksmpi
          if(exmpi(l)==1)then
-            dest_extr(1,l)=nx+1
-            dest_extr(2,l)=nx+1
+            send_extr(1,l)=nx+1
+            send_extr(2,l)=nx+1
 
-            source_extr(1,l)=1
-            source_extr(2,l)=1
+            recv_extr(1,l)=1
+            recv_extr(2,l)=1
 
-            f_dest_extr(1,l)=nx
-            f_dest_extr(2,l)=nx
+            f_send_extr(1,l)=nx
+            f_send_extr(2,l)=nx
 
-            f_source_extr(1,l)=0
-            f_source_extr(2,l)=0
+            f_recv_extr(1,l)=0
+            f_recv_extr(2,l)=0
 
-            b_dest_extr(1,l)=nx-nbuff+1
-            b_dest_extr(2,l)=nx
+            b_send_extr(1,l)=nx-nbuff+1
+            b_send_extr(2,l)=nx
 
-            b_source_extr(1,l)=1-nbuff
-            b_source_extr(2,l)=0
+            b_recv_extr(1,l)=1-nbuff
+            b_recv_extr(2,l)=0
          else
-            dest_extr(1,l)=0
-            dest_extr(2,l)=0
+            send_extr(1,l)=0
+            send_extr(2,l)=0
 
-            source_extr(1,l)=nx
-            source_extr(2,l)=nx
+            recv_extr(1,l)=nx
+            recv_extr(2,l)=nx
 
-            f_dest_extr(1,l)=1
-            f_dest_extr(2,l)=1
+            f_send_extr(1,l)=1
+            f_send_extr(2,l)=1
 
-            f_source_extr(1,l)=nx+1
-            f_source_extr(2,l)=nx+1
+            f_recv_extr(1,l)=nx+1
+            f_recv_extr(2,l)=nx+1
 
-            b_dest_extr(1,l)=1
-            b_dest_extr(2,l)=nbuff
+            b_send_extr(1,l)=1
+            b_send_extr(2,l)=nbuff
 
-            b_source_extr(1,l)=nx+1
-            b_source_extr(2,l)=nx+nbuff
+            b_recv_extr(1,l)=nx+1
+            b_recv_extr(2,l)=nx+nbuff
          endif
          if(eympi(l)==1)then
-            dest_extr(3,l)=ny+1
-            dest_extr(4,l)=ny+1
+            send_extr(3,l)=ny+1
+            send_extr(4,l)=ny+1
 
-            source_extr(3,l)=1
-            source_extr(4,l)=1
+            recv_extr(3,l)=1
+            recv_extr(4,l)=1
 
-            f_dest_extr(3,l)=ny
-            f_dest_extr(4,l)=ny
+            f_send_extr(3,l)=ny
+            f_send_extr(4,l)=ny
 
-            f_source_extr(3,l)=0
-            f_source_extr(4,l)=0
+            f_recv_extr(3,l)=0
+            f_recv_extr(4,l)=0
 
-            b_dest_extr(3,l)=ny-nbuff+1
-            b_dest_extr(4,l)=ny
+            b_send_extr(3,l)=ny-nbuff+1
+            b_send_extr(4,l)=ny
 
-            b_source_extr(3,l)=1-nbuff
-            b_source_extr(4,l)=0
+            b_recv_extr(3,l)=1-nbuff
+            b_recv_extr(4,l)=0
          else
-            dest_extr(3,l)=0
-            dest_extr(4,l)=0
+            send_extr(3,l)=0
+            send_extr(4,l)=0
 
-            source_extr(3,l)=ny
-            source_extr(4,l)=ny
+            recv_extr(3,l)=ny
+            recv_extr(4,l)=ny
 
-            f_dest_extr(3,l)=1
-            f_dest_extr(4,l)=1
+            f_send_extr(3,l)=1
+            f_send_extr(4,l)=1
 
-            f_source_extr(3,l)=ny+1
-            f_source_extr(4,l)=ny+1
+            f_recv_extr(3,l)=ny+1
+            f_recv_extr(4,l)=ny+1
 
-            b_dest_extr(3,l)=1
-            b_dest_extr(4,l)=nbuff
+            b_send_extr(3,l)=1
+            b_send_extr(4,l)=nbuff
 
-            b_source_extr(3,l)=ny+1
-            b_source_extr(4,l)=ny+nbuff
+            b_recv_extr(3,l)=ny+1
+            b_recv_extr(4,l)=ny+nbuff
          endif
          if(ezmpi(l)==1)then
-            dest_extr(5,l)=nz+1
-            dest_extr(6,l)=nz+1
+            send_extr(5,l)=nz+1
+            send_extr(6,l)=nz+1
 
-            source_extr(5,l)=1
-            source_extr(6,l)=1
+            recv_extr(5,l)=1
+            recv_extr(6,l)=1
 
-            f_dest_extr(5,l)=nz
-            f_dest_extr(6,l)=nz
+            f_send_extr(5,l)=nz
+            f_send_extr(6,l)=nz
 
-            f_source_extr(5,l)=0
-            f_source_extr(6,l)=0
+            f_recv_extr(5,l)=0
+            f_recv_extr(6,l)=0
 
-            b_dest_extr(5,l)=nz-nbuff+1
-            b_dest_extr(6,l)=nz
+            b_send_extr(5,l)=nz-nbuff+1
+            b_send_extr(6,l)=nz
 
-            b_source_extr(5,l)=1-nbuff
-            b_source_extr(6,l)=0
+            b_recv_extr(5,l)=1-nbuff
+            b_recv_extr(6,l)=0
          else
-            dest_extr(5,l)=0
-            dest_extr(6,l)=0
+            send_extr(5,l)=0
+            send_extr(6,l)=0
 
-            source_extr(5,l)=nz
-            source_extr(6,l)=nz
+            recv_extr(5,l)=nz
+            recv_extr(6,l)=nz
 
-            f_dest_extr(5,l)=1
-            f_dest_extr(6,l)=1
+            f_send_extr(5,l)=1
+            f_send_extr(6,l)=1
 
-            f_source_extr(5,l)=nz+1
-            f_source_extr(6,l)=nz+1
+            f_recv_extr(5,l)=nz+1
+            f_recv_extr(6,l)=nz+1
 
-            b_dest_extr(5,l)=1
-            b_dest_extr(6,l)=nbuff
+            b_send_extr(5,l)=1
+            b_send_extr(6,l)=nbuff
 
-            b_source_extr(5,l)=nz+1
-            b_source_extr(6,l)=nz+nbuff
+            b_recv_extr(5,l)=nz+1
+            b_recv_extr(6,l)=nz+nbuff
          endif
       enddo
       !calcolo le quantita complessive da movimentare per ogni direzione l
       do l=1,nlinksmpi
-         num_extr(l)=(source_extr(2,l)-source_extr(1,l)+1)* &
-            (source_extr(4,l)-source_extr(3,l)+1)* &
-            (source_extr(6,l)-source_extr(5,l)+1)*num_links_pops(l)
-         i_num_extr(l)=(f_source_extr(2,l)-f_source_extr(1,l)+1)* &
-            (f_source_extr(4,l)-f_source_extr(3,l)+1)* &
-            (f_source_extr(6,l)-f_source_extr(5,l)+1)
-         f_num_extr(l)=(f_source_extr(2,l)-f_source_extr(1,l)+1)* &
-            (f_source_extr(4,l)-f_source_extr(3,l)+1)* &
-            (f_source_extr(6,l)-f_source_extr(5,l)+1)*num_f_datampi
-         b_num_extr(l)=(b_source_extr(2,l)-b_source_extr(1,l)+1)* &
-            (b_source_extr(4,l)-b_source_extr(3,l)+1)* &
-            (b_source_extr(6,l)-b_source_extr(5,l)+1)*num_b_datampi
+         num_extr(l)=(recv_extr(2,l)-recv_extr(1,l)+1)* &
+            (recv_extr(4,l)-recv_extr(3,l)+1)* &
+            (recv_extr(6,l)-recv_extr(5,l)+1)*num_links_pops(l)
+         i_num_extr(l)=(f_recv_extr(2,l)-f_recv_extr(1,l)+1)* &
+            (f_recv_extr(4,l)-f_recv_extr(3,l)+1)* &
+            (f_recv_extr(6,l)-f_recv_extr(5,l)+1)
+         f_num_extr(l)=(f_recv_extr(2,l)-f_recv_extr(1,l)+1)* &
+            (f_recv_extr(4,l)-f_recv_extr(3,l)+1)* &
+            (f_recv_extr(6,l)-f_recv_extr(5,l)+1)*num_f_datampi
+         b_num_extr(l)=(b_recv_extr(2,l)-b_recv_extr(1,l)+1)* &
+            (b_recv_extr(4,l)-b_recv_extr(3,l)+1)* &
+            (b_recv_extr(6,l)-b_recv_extr(5,l)+1)*num_b_datampi
       enddo
 
 
 
 #ifdef VERBOSE
       !stampo per debug
-      if(myrank==0)write(6,'(a)')'#######################   dest_extr    source_extr #######################'
+      if(myrank==0)write(6,'(a)')'#######################   send_extr    recv_extr #######################'
       do l=1,nlinksmpi
          if(myrank==0)write(6,'(a,i3,a,3i3,a,6i4,a,6i4,a,i4)')'dir l ',l,' disp ',&
-            exmpi(l),eympi(l),ezmpi(l),' extremes d',dest_extr(1:6,l),&
-            ' s ',source_extr(1:6,l),' num ',num_extr(l)
+            exmpi(l),eympi(l),ezmpi(l),' extremes d',send_extr(1:6,l),&
+            ' s ',recv_extr(1:6,l),' num ',num_extr(l)
          call flush(6)
 #ifdef MPI
          call MPI_Barrier(MPI_COMM_WORLD,ierr)
@@ -1638,11 +1652,11 @@ contains
 #ifdef MPI
       call MPI_Barrier(MPI_COMM_WORLD,ierr)
 #endif
-      if(myrank==0)write(6,'(a)')'####################### f_dest_extr  f_source_extr #######################'
+      if(myrank==0)write(6,'(a)')'####################### f_send_extr  f_recv_extr #######################'
       do l=1,nlinksmpi
          if(myrank==0)write(6,'(a,i3,a,3i3,a,6i4,a,6i4,a,i4)')'dir l ',l,' disp ',&
-            exmpi(l),eympi(l),ezmpi(l),' extremes d',f_dest_extr(1:6,l),&
-            ' s ',f_source_extr(1:6,l),' num ',f_num_extr(l)
+            exmpi(l),eympi(l),ezmpi(l),' extremes d',f_send_extr(1:6,l),&
+            ' s ',f_recv_extr(1:6,l),' num ',f_num_extr(l)
          call flush(6)
 #ifdef MPI
          call MPI_Barrier(MPI_COMM_WORLD,ierr)
@@ -1652,11 +1666,11 @@ contains
       call MPI_Barrier(MPI_COMM_WORLD,ierr)
 #endif
       if(lbuff)then
-         if(myrank==0)write(6,'(a)')'####################### b_dest_extr  b_source_extr #######################'
+         if(myrank==0)write(6,'(a)')'####################### b_send_extr  b_recv_extr #######################'
          do l=1,nlinksmpi
             if(myrank==0)write(6,'(a,i3,a,3i3,a,6i4,a,6i4,a,i4)')'dir l ',l,' disp ',&
-               exmpi(l),eympi(l),ezmpi(l),' extremes d',b_dest_extr(1:6,l),&
-               ' s ',b_source_extr(1:6,l),' num ',b_num_extr(l)
+               exmpi(l),eympi(l),ezmpi(l),' extremes d',b_send_extr(1:6,l),&
+               ' s ',b_recv_extr(1:6,l),' num ',b_num_extr(l)
             call flush(6)
 #ifdef MPI
             call MPI_Barrier(MPI_COMM_WORLD,ierr)
@@ -1736,72 +1750,72 @@ contains
       numtot_extr=sum(num_extr)
       ll=0
       do l=1,nlinksmpi
-         nbuffmpi_dest(l)=ll+1
-         if(ldestpop_dir(l))ll=ll+num_extr(l)
+         nbuffmpi_send(l)=ll+1
+         if(lsendpop_dir(l))ll=ll+num_extr(l)
       enddo
-      allocate(dest_buffmpi(ll))
-      dest_buffmpi=real(0.d0,kind=db)
+      allocate(send_buffmpi(ll))
+      send_buffmpi=real(0.d0,kind=db)
 
       ll=0
       do l=1,nlinksmpi
-         nbuffmpi_source(l)=ll+1
-         if(lsourcepop_dir(l))ll=ll+num_extr(l)
+         nbuffmpi_recv(l)=ll+1
+         if(lrecvpop_dir(l))ll=ll+num_extr(l)
       enddo
-      allocate(source_buffmpi(ll))
-      source_buffmpi=real(0.d0,kind=db)
+      allocate(recv_buffmpi(ll))
+      recv_buffmpi=real(0.d0,kind=db)
 
       f_numtot_extr=sum(f_num_extr)
       ll=0
       do l=1,nlinksmpi
-         f_nbuffmpi_dest(l)=ll+1
-         if(ldest_dir(l))ll=ll+f_num_extr(l)
+         f_nbuffmpi_send(l)=ll+1
+         if(lsend_dir(l))ll=ll+f_num_extr(l)
       enddo
-      allocate(f_dest_buffmpi(ll))
-      f_dest_buffmpi=real(0.d0,kind=db)
+      allocate(f_send_buffmpi(ll))
+      f_send_buffmpi=real(0.d0,kind=db)
 
       ll=0
       do l=1,nlinksmpi
-         f_nbuffmpi_source(l)=ll+1
-         if(lsource_dir(l))ll=ll+f_num_extr(l)
+         f_nbuffmpi_recv(l)=ll+1
+         if(lrecv_dir(l))ll=ll+f_num_extr(l)
       enddo
-      allocate(f_source_buffmpi(ll))
-      f_source_buffmpi=real(0.d0,kind=db)
+      allocate(f_recv_buffmpi(ll))
+      f_recv_buffmpi=real(0.d0,kind=db)
 
       if(lbuff)then
          b_numtot_extr=sum(b_num_extr)
          ll=0
          do l=1,nlinksmpi
-            b_nbuffmpi_dest(l)=ll+1
-            if(ldest_dir(l))ll=ll+b_num_extr(l)
+            b_nbuffmpi_send(l)=ll+1
+            if(lsend_dir(l))ll=ll+b_num_extr(l)
          enddo
-         allocate(b_dest_buffmpi(ll))
-         b_dest_buffmpi=real(0.d0,kind=db)
+         allocate(b_send_buffmpi(ll))
+         b_send_buffmpi=real(0.d0,kind=db)
 
          ll=0
          do l=1,nlinksmpi
-            b_nbuffmpi_source(l)=ll+1
-            if(lsource_dir(l))ll=ll+b_num_extr(l)
+            b_nbuffmpi_recv(l)=ll+1
+            if(lrecv_dir(l))ll=ll+b_num_extr(l)
          enddo
-         allocate(b_source_buffmpi(ll))
-         b_source_buffmpi=real(0.d0,kind=db)
+         allocate(b_recv_buffmpi(ll))
+         b_recv_buffmpi=real(0.d0,kind=db)
       endif
 
       i_numtot_extr=sum(i_num_extr)
       ll=0
       do l=1,nlinksmpi
-         i_nbuffmpi_dest(l)=ll+1
-         if(ldest_dir(l))ll=ll+i_num_extr(l)
+         i_nbuffmpi_send(l)=ll+1
+         if(lsend_dir(l))ll=ll+i_num_extr(l)
       enddo
-      allocate(i_dest_buffmpi(ll))
-      i_dest_buffmpi=int(0,kind=isf)
+      allocate(i_send_buffmpi(ll))
+      i_send_buffmpi=int(0,kind=isf)
 
       ll=0
       do l=1,nlinksmpi
-         i_nbuffmpi_source(l)=ll+1
-         if(lsource_dir(l))ll=ll+i_num_extr(l)
+         i_nbuffmpi_recv(l)=ll+1
+         if(lrecv_dir(l))ll=ll+i_num_extr(l)
       enddo
-      allocate(i_source_buffmpi(ll))
-      i_source_buffmpi=int(0,kind=isf)
+      allocate(i_recv_buffmpi(ll))
+      i_recv_buffmpi=int(0,kind=isf)
 
 #ifdef MPI
       call MPI_Barrier(MPI_COMM_WORLD,ierr)
@@ -1825,7 +1839,149 @@ contains
 
 
    end subroutine setup_mpi
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ADVC!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   subroutine setup_mpi_advc
 
+      implicit none
+
+      integer:: uni,lopp,idrank,oi,oj,ok
+      integer:: ierr, ijlen
+! mpi variables
+      integer,dimension(mpid) :: temp_coord
+      logical :: lcheck=.false.
+
+      !trovo per ogni direzione l quali popolazioni devono essere inviate e le storo in links_faces
+      !occhio che devo vedere quali popolazioni mandare con d3q7
+      !exmpi eympi ezmpi sono le 26 direzioni di MPI di cui prendo solo le prime 6
+      !ex_advc ey_advc ez_advc sono le direzioni del lattice d3q7
+      allocate(num_links_pops_advc(1:nlinksmpi_advc))
+      !faces
+      nfaces=6
+      nlinks_faces_advc=1
+      allocate(links_faces(1:nlinks_faces_advc,1:6))
+      do l=1,6
+         nlinks_faces_advc=0
+         do ll=1,nlinks_advc
+            if((abs(exmpi(l))==1 .and. exmpi(l)==ex_advc(ll)) .or. &
+               (abs(eympi(l))==1 .and. eympi(l)==ey_advc(ll)) .or. &
+               (abs(ezmpi(l))==1 .and. ezmpi(l)==ez_advc(ll)))then
+               nlinks_faces_advc=nlinks_faces_advc+1
+               if(nlinks_faces_advc>1)then
+                  call doerror(6,'something of bad in setup_mpi_advc with d3q7')
+               endif
+               links_faces(nlinks_faces_advc,l)=ll
+#ifdef VERBOSE
+               if(myrank==0)write(6,'(a,i3,a,3i3,a,a2,a,3i3)')'advc dir l ',l,' disp ',&
+                  exmpi(l),eympi(l),ezmpi(l),&
+                  ' f',write_fmtnumb2(ll),' dir ',ex_advc(ll),ey_advc(ll),ez_advc(ll)
+               call flush(6)
+#endif
+            endif
+         enddo
+         num_links_pops_advc(l)=nlinks_faces_advc
+      enddo
+      if(myrank==0)then
+         write(6,'(a,3i3)')'dir nlinks_advc ',nlinks_faces_advc
+      endif
+
+      !riempio la lista links_pops con le popolazioni da inviare per ogni direzione l
+      !il primo indice di lista links_pops è preso dal massimo delle pops da mandare tra faces edges e corners (ovviamente è sempre faces)
+      !nota che num_links_pops è il numero di poplazioni da inviare per direzione l
+      nlinks_max_advc=nlinks_faces_advc
+      allocate(links_pops_advc(1:nlinks_max_advc,1:nlinksmpi_advc))
+      do l=1,6
+         do ll=1,num_links_pops_advc(l)
+            links_pops_advc(ll,l)=links_faces(ll,l)
+         enddo
+      enddo
+#ifdef MPI
+      call MPI_Barrier(MPI_COMM_WORLD,ierr)
+#endif
+      deallocate(links_faces)
+
+      !solo se ci sono popolazioni da mandare
+      !allora metti lsendpop_dir_advc e lrecvpop_dir_advc true
+      !con d3q7
+      do l=1,nlinksmpi_advc
+         lsendpop_advc_dir(l)=(lsend_dir(l) .and. num_links_pops_advc(l)>0)
+         lrecvpop_advc_dir(l)=(lrecv_dir(l) .and. num_links_pops_advc(l)>0)
+      enddo
+      !solo se ci sono popolazioni da fare pbc interno lo fai
+      do l=1,nlinksmpi_advc
+         lintpbcpop_advc_dir(l)=(lintpbc_dir(l) .and. num_links_pops_advc(l)>0)
+      enddo
+
+
+      !calcolo le quantita complessive da movimentare per ogni direzione l
+      do l=1,nlinksmpi_advc
+         num_extr_advc(l)=(recv_extr(2,l)-recv_extr(1,l)+1)* &
+            (recv_extr(4,l)-recv_extr(3,l)+1)* &
+            (recv_extr(6,l)-recv_extr(5,l)+1)*num_links_pops_advc(l)
+      enddo
+
+
+
+#ifdef VERBOSE
+      !stampo per debug
+      if(myrank==0)write(6,'(a)')'#######################   send_extr_advc    recv_extr_advc #######################'
+      do l=1,nlinksmpi_advc
+         if(myrank==0)write(6,'(a,i3,a,3i3,a,6i4,a,6i4,a,i4)')'advc dir l ',l,' disp ',&
+            exmpi(l),eympi(l),ezmpi(l),' extremes d',send_extr(1:6,l),&
+            ' s ',recv_extr(1:6,l),' num ',num_extr_advc(l)
+         call flush(6)
+#ifdef MPI
+         call MPI_Barrier(MPI_COMM_WORLD,ierr)
+#endif
+      enddo
+#ifdef MPI
+      call MPI_Barrier(MPI_COMM_WORLD,ierr)
+#endif
+#endif
+
+      !creo i tipi MPI contigui che mi servono per i send e receive
+      !lo faccio su 13 direzioni perchè per l ed lopp le quantità da muovere sono uguali
+#ifdef MPI
+      do l=1,nlinksmpi_advc,2
+         ll=(l+1)/2
+         call MPI_type_contiguous(num_extr_advc(l), MYMPIREAL, datampi_advc(ll), ierr) !!mpi contiguous definisce il ktipo mpi da passare
+         call MPI_type_commit(datampi_advc(ll),ierr) !!qui lo alloca!
+#ifdef VERBOSE
+         if(myrank.eq.0) then
+            write(6,'(a,2i4,a,f16.8)') 'CREATE BUFFER: datampi_advc',ll*2-1,ll*2,' (KB)-->',&
+               real(num_extr_advc(l),kind=db) *4 / 1024
+            call flush(6)
+         endif
+#endif
+      enddo
+
+      call MPI_Barrier(MPI_COMM_WORLD,ierr)
+#endif
+
+      !alloca i buffer per mandare e ricevere
+      numtot_extr_advc=sum(num_extr_advc)
+      ll=0
+      do l=1,nlinksmpi_advc
+         advc_nbuffmpi_send(l)=ll+1
+         if(lsendpop_advc_dir(l))ll=ll+num_extr_advc(l)
+      enddo
+      allocate(advc_send_buffmpi(ll))
+      advc_send_buffmpi=real(0.d0,kind=db)
+
+      ll=0
+      do l=1,nlinksmpi_advc
+         advc_nbuffmpi_recv(l)=ll+1
+         if(lrecvpop_advc_dir(l))ll=ll+num_extr_advc(l)
+      enddo
+      allocate(advc_recv_buffmpi(ll))
+      advc_recv_buffmpi=real(0.d0,kind=db)
+
+#ifdef MPI
+      call MPI_Barrier(MPI_COMM_WORLD,ierr)
+#endif
+
+
+   end subroutine setup_mpi_advc
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    subroutine setup_intbb
 
       implicit none
@@ -1836,16 +1992,16 @@ contains
       !controllo se ho almeno un isfluid==0 nelle cornici
       !se si lintbb_dir è true lungo la direzione lmio
       do lmio=1,nlinksmpi
-         allocate(myisfluid(dest_extr(1,lmio):dest_extr(2,lmio),&
-            dest_extr(3,lmio):dest_extr(4,lmio),&
-            dest_extr(5,lmio):dest_extr(6,lmio)))
+         allocate(myisfluid(send_extr(1,lmio):send_extr(2,lmio),&
+            send_extr(3,lmio):send_extr(4,lmio),&
+            send_extr(5,lmio):send_extr(6,lmio)))
 
-         myisfluid(dest_extr(1,lmio):dest_extr(2,lmio),&
-            dest_extr(3,lmio):dest_extr(4,lmio),&
-            dest_extr(5,lmio):dest_extr(6,lmio)) = &
-            isfluid(dest_extr(1,lmio):dest_extr(2,lmio),&
-            dest_extr(3,lmio):dest_extr(4,lmio),&
-            dest_extr(5,lmio):dest_extr(6,lmio))
+         myisfluid(send_extr(1,lmio):send_extr(2,lmio),&
+            send_extr(3,lmio):send_extr(4,lmio),&
+            send_extr(5,lmio):send_extr(6,lmio)) = &
+            isfluid(send_extr(1,lmio):send_extr(2,lmio),&
+            send_extr(3,lmio):send_extr(4,lmio),&
+            send_extr(5,lmio):send_extr(6,lmio))
          !lungo il settore di estremi lungo lmio (1-6 facce, 7-18 edges, 19-26 corner)
          !solo se ho almeno un isfluid==0 e ci sono popolazioni entranti fai bounce back
          lintbb_dir(lmio)=((any(myisfluid==0)) .and. num_links_pops(lmio)>0)
@@ -1897,7 +2053,7 @@ contains
 
       !fai bounce back sulla cornice se necessario
       do lmio=1,nlinksmpi
-         !lintbb_dir è true se esiste almeno in isfluid zero nell'intervallo dest_extr
+         !lintbb_dir è true se esiste almeno in isfluid zero nell'intervallo send_extr
          !lintbb_dir è true se nella cornice lungo la direzione lmio c'è almeno un isfluid==0
          if(.not. lintbb_dir(lmio))cycle
          do ll=1,num_links_pops(lmio)
@@ -1905,11 +2061,11 @@ contains
             !sono le stesse che uso per il send ma in direzione opposta perchè bounce-back
             l=links_pops(ll,lmio)
             lopp=opp(l)
-            !$acc kernels present(dest_extr,num_links_pops,links_pops,f,isfluid)
+            !$acc kernels present(send_extr,num_links_pops,links_pops,f,isfluid)
             !$acc loop independent collapse(3)  private(i,j,k,ii,jj,kk,ll,lopp)
-            do k=dest_extr(5,lmio),dest_extr(6,lmio)
-               do j=dest_extr(3,lmio),dest_extr(4,lmio)
-                  do i=dest_extr(1,lmio),dest_extr(2,lmio)
+            do k=send_extr(5,lmio),send_extr(6,lmio)
+               do j=send_extr(3,lmio),send_extr(4,lmio)
+                  do i=send_extr(1,lmio),send_extr(2,lmio)
                      if(isfluid(i,j,k).ne. 0)cycle
                      ii=i+ex(lopp)
                      jj=j+ey(lopp)
@@ -1934,12 +2090,12 @@ contains
       do lmio=1,nlinksmpi
          if(.not. lintpbcpop_dir(lmio)) cycle
          !scorro sul numero di popolazioni da prendere per la direzione lmio
-         !$acc kernels present(dest_extr,intpbc_dir,num_links_pops,links_pops,f) async
+         !$acc kernels present(send_extr,intpbc_dir,num_links_pops,links_pops,f) async
          !$acc loop independent collapse(4) private(i,j,k,oi,oj,ok,ll,l)
          do ll=1,num_links_pops(lmio)
-            do k=dest_extr(5,lmio),dest_extr(6,lmio)
-               do j=dest_extr(3,lmio),dest_extr(4,lmio)
-                  do i=dest_extr(1,lmio),dest_extr(2,lmio)
+            do k=send_extr(5,lmio),send_extr(6,lmio)
+               do j=send_extr(3,lmio),send_extr(4,lmio)
+                  do i=send_extr(1,lmio),send_extr(2,lmio)
                      !trovo la popolazioni da gestire dalla lista per la direzione lmio
                      l=links_pops(ll,lmio)
                      oi=i ! destinazione delle periodic bc all'interno dello stesso processo!
@@ -1969,24 +2125,24 @@ contains
 
       do l=1,nlinksmpi
          !se devo mandare lungo l allora impacchetto
-         if(ldestpop_dir(l))call packaging_buffmpi(l) !! qui impacchetto dest_buffmpi
+         if(lsendpop_dir(l))call packaging_buffmpi(l) !! qui impacchetto send_buffmpi
       enddo
-      !source_buffmpi=dest_buffmpi
+      !recv_buffmpi=send_buffmpi
 #ifdef MPI
       do l=1,nlinksmpi
          ll=(l+1)/2
-         if(ldestpop_dir(l))then
-            myoffset=nbuffmpi_dest(l) !!! myoffset ---> legge da nbuffmpi_dest(l) chje copntiene gli offset per la l-esima direzione
-            !$acc host_data use_device(dest_buffmpi)
-            call mpi_isend(dest_buffmpi(myoffset),1,datampi(ll),dest_dir(l), &
-               mpitag(l),lbecomm,reqs_dest(l),ierr)
+         if(lsendpop_dir(l))then
+            myoffset=nbuffmpi_send(l) !!! myoffset ---> legge da nbuffmpi_send(l) chje copntiene gli offset per la l-esima direzione
+            !$acc host_data use_device(send_buffmpi)
+            call mpi_isend(send_buffmpi(myoffset),1,datampi(ll),send_dir(l), &
+               mpitag(l),lbecomm,reqs_send(l),ierr)
             !$acc end host_data
          endif
-         if(lsourcepop_dir(l))then
-            myoffset=nbuffmpi_source(l)
-            !$acc host_data use_device(source_buffmpi)
-            call mpi_irecv(source_buffmpi(myoffset),1,datampi(ll),source_dir(l), &
-               mpitag(l),lbecomm,reqs_source(l),ierr)
+         if(lrecvpop_dir(l))then
+            myoffset=nbuffmpi_recv(l)
+            !$acc host_data use_device(recv_buffmpi)
+            call mpi_irecv(recv_buffmpi(myoffset),1,datampi(ll),recv_dir(l), &
+               mpitag(l),lbecomm,reqs_recv(l),ierr)
             !$acc end host_data
          endif
       enddo
@@ -2000,29 +2156,29 @@ contains
       implicit none
 
       integer :: l,ll,myoffset,tag,ierr
-      integer, dimension(nlinksmpi) :: ierr_dest,ierr_source
+      integer, dimension(nlinksmpi) :: ierr_send,ierr_recv
 #ifdef MPI
-      integer, dimension(MPI_STATUS_SIZE) :: status_dest,status_source
+      integer, dimension(MPI_STATUS_SIZE) :: status_send,status_recv
 #endif
 
-      ierr_dest=0
-      ierr_source=0
+      ierr_send=0
+      ierr_recv=0
 #ifdef MPI
       do l=1,nlinksmpi
          ll=(l+1)/2
-         if(ldestpop_dir(l))then
-            call mpi_wait(reqs_dest(l),status_dest,ierr_dest(l))
+         if(lsendpop_dir(l))then
+            call mpi_wait(reqs_send(l),status_send,ierr_send(l))
          endif
-         if(lsourcepop_dir(l))then
-            call mpi_wait(reqs_source(l),status_source,ierr_source(l))
+         if(lrecvpop_dir(l))then
+            call mpi_wait(reqs_recv(l),status_recv,ierr_recv(l))
          endif
       enddo
 #endif
-      if(any(ierr_dest.ne.0))call doerror(6,'ERROR in mpi_wait dest')
-      if(any(ierr_source.ne.0))call doerror(6,'ERROR in mpi_wait source')
+      if(any(ierr_send.ne.0))call doerror(6,'ERROR in mpi_wait send')
+      if(any(ierr_recv.ne.0))call doerror(6,'ERROR in mpi_wait recv')
 
       do l=1,nlinksmpi
-         if(lsourcepop_dir(l))call depackaging_buffmpi(l)
+         if(lrecvpop_dir(l))call depackaging_buffmpi(l)
       enddo
 
    end subroutine exchange_pops_wait
@@ -2038,24 +2194,24 @@ contains
 
       integer :: idx
 
-      myoffset=nbuffmpi_dest(lmio)
-      m1=dest_extr(2,lmio)-dest_extr(1,lmio)+1
-      m2=dest_extr(4,lmio)-dest_extr(3,lmio)+1
-      m3=dest_extr(6,lmio)-dest_extr(5,lmio)+1
-      !$acc kernels present(dest_buffmpi,num_links_pops,links_pops,f,dest_extr)
+      myoffset=nbuffmpi_send(lmio)
+      m1=send_extr(2,lmio)-send_extr(1,lmio)+1
+      m2=send_extr(4,lmio)-send_extr(3,lmio)+1
+      m3=send_extr(6,lmio)-send_extr(5,lmio)+1
+      !$acc kernels present(send_buffmpi,num_links_pops,links_pops,f,send_extr)
       !$acc loop independent collapse(4)  private(i,j,k,idx,l,ll)
       !scorro sul numero di popolazioni da prendere per la direzione lmio
       do ll=1,num_links_pops(lmio)
          !trovo la popolazioni da gestire dalla lista per la direzione lmio
-         do k=dest_extr(5,lmio),dest_extr(6,lmio)
-            do j=dest_extr(3,lmio),dest_extr(4,lmio)
-               do i=dest_extr(1,lmio),dest_extr(2,lmio)
+         do k=send_extr(5,lmio),send_extr(6,lmio)
+            do j=send_extr(3,lmio),send_extr(4,lmio)
+               do i=send_extr(1,lmio),send_extr(2,lmio)
                   l=links_pops(ll,lmio)
                   !linearizzo con l'ordine naturale e metto nel buffer unico per tutte le direzioni
                   !poi mandero solo i pezzi contigui che mi servono per la data direzione
-                  idx=myoffset+(i-dest_extr(1,lmio))+(j-dest_extr(3,lmio))*m1+(&
-                     k-dest_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
-                  dest_buffmpi(idx)=f(i,j,k,l)
+                  idx=myoffset+(i-send_extr(1,lmio))+(j-send_extr(3,lmio))*m1+(&
+                     k-send_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
+                  send_buffmpi(idx)=f(i,j,k,l)
                enddo
             enddo
          enddo
@@ -2075,24 +2231,24 @@ contains
 
       integer :: idx
 
-      myoffset=nbuffmpi_source(lmio)
-      m1=source_extr(2,lmio)-source_extr(1,lmio)+1
-      m2=source_extr(4,lmio)-source_extr(3,lmio)+1
-      m3=source_extr(6,lmio)-source_extr(5,lmio)+1
-      !$acc kernels present(source_buffmpi,num_links_pops,links_pops,f,source_extr)
+      myoffset=nbuffmpi_recv(lmio)
+      m1=recv_extr(2,lmio)-recv_extr(1,lmio)+1
+      m2=recv_extr(4,lmio)-recv_extr(3,lmio)+1
+      m3=recv_extr(6,lmio)-recv_extr(5,lmio)+1
+      !$acc kernels present(recv_buffmpi,num_links_pops,links_pops,f,recv_extr)
       !$acc loop independent collapse(4)  private(i,j,k,idx,l,ll)
       !scorro sul numero di popolazioni da prendere per la direzione lmio
       do ll=1,num_links_pops(lmio)
-         do k=source_extr(5,lmio),source_extr(6,lmio)
-            do j=source_extr(3,lmio),source_extr(4,lmio)
-               do i=source_extr(1,lmio),source_extr(2,lmio)
+         do k=recv_extr(5,lmio),recv_extr(6,lmio)
+            do j=recv_extr(3,lmio),recv_extr(4,lmio)
+               do i=recv_extr(1,lmio),recv_extr(2,lmio)
                   !trovo la popolazioni da gestire dalla lista per la direzione lmio
                   l=links_pops(ll,lmio)
                   !linearizzo con l'ordine naturale e metto nel buffer unico per tutte le direzioni
                   !poi mandero solo i pezzi contigui che mi servono per la data direzione
-                  idx=myoffset+(i-source_extr(1,lmio))+(j-source_extr(3,lmio))*m1+(&
-                     k-source_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
-                  f(i,j,k,l)=source_buffmpi(idx)
+                  idx=myoffset+(i-recv_extr(1,lmio))+(j-recv_extr(3,lmio))*m1+(&
+                     k-recv_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
+                  f(i,j,k,l)=recv_buffmpi(idx)
                enddo
             enddo
          enddo
@@ -2100,7 +2256,193 @@ contains
       !$acc end kernels
 
    end subroutine depackaging_buffmpi
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ADVC!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   subroutine exchange_pops_advc_intpbc
 
+      implicit none
+
+      integer :: l,ll,lmio,oi,oj,ok
+      !faccio le pbc per le popolazioni se interne allo stesso processo MPI, lintpbcpop_dir(lmio)=true
+      !occhio se non ci sono popolazioni da mandare lintpbcpop_dir è falso
+      do lmio=1,nlinksmpi_advc
+         if(.not. lintpbcpop_advc_dir(lmio)) cycle
+         !scorro sul numero di popolazioni da prendere per la direzione lmio
+         !$acc kernels present(send_extr,intpbc_dir,num_links_pops,links_pops,f) async
+         !$acc loop independent collapse(3) private(i,j,k,oi,oj,ok,l)
+         !do ll=1,num_links_pops_advc(lmio)
+         !sopra commento perche in d3q7 num_links_pops_advc è sempre 1 sola pops per direzione
+         !ll è sempre 1                    
+         do k=send_extr(5,lmio),send_extr(6,lmio)
+            do j=send_extr(3,lmio),send_extr(4,lmio)
+               do i=send_extr(1,lmio),send_extr(2,lmio)
+                  !!ll è sempre 1 in d3q7 una sola pop per direzione lungo le faccie
+                  !trovo la popolazioni da gestire dalla lista per la direzione lmio
+                  l=links_pops_advc(1,lmio)
+                  oi=i ! destinazione delle periodic bc all'interno dello stesso processo!
+                  oj=j
+                  ok=k
+                  if(intpbc_dir(1,lmio)) oi=mod(oi+nx-1,nx)+1
+                  if(intpbc_dir(2,lmio)) oj=mod(oj+ny-1,ny)+1
+                  if(intpbc_dir(3,lmio)) ok=mod(ok+nz-1,nz)+1
+                  !applico su g del d3q7 le pbc interne
+                  g(oi,oj,ok,l)=g(i,j,k,l)
+               enddo
+            enddo
+         enddo
+         !enddo
+         !$acc end kernels
+      enddo
+
+      !$acc wait
+
+   end subroutine exchange_pops_advc_intpbc
+
+   subroutine exchange_pops_advc_sendrecv
+
+      implicit none
+
+      integer :: l,ll,myoffset,tag,ierr
+
+      do l=1,nlinksmpi_advc
+         !se devo mandare lungo l allora impacchetto
+         if(lsendpop_advc_dir(l))call packaging_advc_buffmpi(l) !! qui impacchetto advc_send_buffmpi
+      enddo
+      !recv_buffmpi=send_buffmpi
+#ifdef MPI
+      do l=1,nlinksmpi_advc
+         ll=(l+1)/2
+         if(lsendpop_advc_dir(l))then
+            myoffset=advc_nbuffmpi_send(l) !!! myoffset ---> legge da advc_nbuffmpi_send(l) che copntiene gli offset per la l-esima direzione
+            !$acc host_data use_device(advc_send_buffmpi)
+            call mpi_isend(advc_send_buffmpi(myoffset),1,datampi_advc(ll),send_dir(l), &
+               advc_mpitag(l),lbecomm,advc_reqs_send(l),ierr)
+            !$acc end host_data
+         endif
+         if(lrecvpop_advc_dir(l))then
+            myoffset=advc_nbuffmpi_recv(l)
+            !$acc host_data use_device(advc_recv_buffmpi)
+            call mpi_irecv(advc_recv_buffmpi(myoffset),1,datampi_advc(ll),recv_dir(l), &
+               advc_mpitag(l),lbecomm,advc_reqs_recv(l),ierr)
+            !$acc end host_data
+         endif
+      enddo
+#endif
+
+
+   end subroutine exchange_pops_advc_sendrecv
+
+   subroutine exchange_pops_advc_wait
+
+      implicit none
+
+      integer :: l,ll,myoffset,tag,ierr
+      integer, dimension(nlinksmpi_advc) :: ierr_send,ierr_recv
+#ifdef MPI
+      integer, dimension(MPI_STATUS_SIZE) :: status_send,status_recv
+#endif
+
+      ierr_send=0
+      ierr_recv=0
+#ifdef MPI
+      do l=1,nlinksmpi_advc
+         ll=(l+1)/2
+         if(lsendpop_advc_dir(l))then
+            call mpi_wait(advc_reqs_send(l),status_send,ierr_send(l))
+         endif
+         if(lrecvpop_advc_dir(l))then
+            call mpi_wait(advc_reqs_recv(l),status_recv,ierr_recv(l))
+         endif
+      enddo
+#endif
+      if(any(ierr_send.ne.0))call doerror(6,'ERROR in mpi_wait send_advc')
+      if(any(ierr_recv.ne.0))call doerror(6,'ERROR in mpi_wait recv_advc')
+
+      do l=1,nlinksmpi_advc
+         if(lrecvpop_advc_dir(l))call depackaging_advc_buffmpi(l)
+      enddo
+
+   end subroutine exchange_pops_advc_wait
+
+   subroutine packaging_advc_buffmpi(lmio)
+
+      implicit none
+
+      integer, intent(in) :: lmio
+      integer :: myoffset
+
+      integer :: i,j,k,l,ll,m1,m2,m3
+
+      integer :: idx
+
+      myoffset=advc_nbuffmpi_send(lmio)
+      m1=send_extr(2,lmio)-send_extr(1,lmio)+1
+      m2=send_extr(4,lmio)-send_extr(3,lmio)+1
+      m3=send_extr(6,lmio)-send_extr(5,lmio)+1
+      !$acc kernels present(send_buffmpi,num_links_pops,links_pops,f,send_extr)
+      !$acc loop independent collapse(3)  private(i,j,k,idx,l,ll)
+      !scorro sul numero di popolazioni da prendere per la direzione lmio
+      !do ll=1,num_links_pops_advc(lmio)
+      !sopra commento perche in d3q7 num_links_pops_advc è sempre 1 sola pops per direzione
+      !ll è sempre 1   
+      do k=send_extr(5,lmio),send_extr(6,lmio)
+         do j=send_extr(3,lmio),send_extr(4,lmio)
+            do i=send_extr(1,lmio),send_extr(2,lmio)
+               ll=1
+               !trovo la popolazioni da gestire dalla lista per la direzione lmio
+               l=links_pops_advc(ll,lmio)
+               !linearizzo con l'ordine naturale e metto nel buffer unico per tutte le direzioni
+               !poi mandero solo i pezzi contigui che mi servono per la data direzione
+               idx=myoffset+(i-send_extr(1,lmio))+(j-send_extr(3,lmio))*m1+(&
+                  k-send_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
+               advc_send_buffmpi(idx)=g(i,j,k,l)
+            enddo
+         enddo
+      enddo
+      !enddo
+      !$acc end kernels
+
+   end subroutine packaging_advc_buffmpi
+
+   subroutine depackaging_advc_buffmpi(lmio)
+
+      implicit none
+
+      integer, intent(in) :: lmio
+      integer :: myoffset
+
+      integer :: i,j,k,l,ll,m1,m2,m3
+
+      integer :: idx
+
+      myoffset=advc_nbuffmpi_recv(lmio)
+      m1=recv_extr(2,lmio)-recv_extr(1,lmio)+1
+      m2=recv_extr(4,lmio)-recv_extr(3,lmio)+1
+      m3=recv_extr(6,lmio)-recv_extr(5,lmio)+1
+      !$acc kernels present(recv_buffmpi,num_links_pops,links_pops,f,recv_extr)
+      !$acc loop independent collapse(3)  private(i,j,k,idx,l,ll)
+      !scorro sul numero di popolazioni da prendere per la direzione lmio
+      !do ll=1,num_links_pops_advc(lmio)
+      !sopra commento perche in d3q7 num_links_pops_advc è sempre 1 sola pops per direzione
+      !ll è sempre 1   
+      do k=recv_extr(5,lmio),recv_extr(6,lmio)
+         do j=recv_extr(3,lmio),recv_extr(4,lmio)
+            do i=recv_extr(1,lmio),recv_extr(2,lmio)
+               ll=1
+               !trovo la popolazioni da gestire dalla lista per la direzione lmio
+               l=links_pops_advc(ll,lmio)
+               !linearizzo con l'ordine naturale e metto nel buffer unico per tutte le direzioni
+               !poi mandero solo i pezzi contigui che mi servono per la data direzione
+               idx=myoffset+(i-recv_extr(1,lmio))+(j-recv_extr(3,lmio))*m1+(&
+                  k-recv_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
+               g(i,j,k,l)=advc_recv_buffmpi(idx)
+            enddo
+         enddo
+      enddo
+      !enddo
+      !$acc end kernels
+
+   end subroutine depackaging_advc_buffmpi
+!*******************************PHI********************************************************************!
    subroutine exchange_float_intpbc
 
       implicit none
@@ -2109,18 +2451,18 @@ contains
 
       do lmio=1,nlinksmpi
          if(.not. lintpbc_dir(lmio))cycle
-         !$acc kernels present(intpbc_dir,rho)
+         !$acc kernels present(intpbc_dir,phi)
          !$acc loop independent collapse(3)  private(i,j,k,oi,oj,ok)
-         do k=f_source_extr(5,lmio),f_source_extr(6,lmio)
-            do j=f_source_extr(3,lmio),f_source_extr(4,lmio)
-               do i=f_source_extr(1,lmio),f_source_extr(2,lmio)
+         do k=f_recv_extr(5,lmio),f_recv_extr(6,lmio)
+            do j=f_recv_extr(3,lmio),f_recv_extr(4,lmio)
+               do i=f_recv_extr(1,lmio),f_recv_extr(2,lmio)
                   oi=i
                   oj=j
                   ok=k
                   if(intpbc_dir(1,lmio))oi=mod(oi+nx-1,nx)+1
                   if(intpbc_dir(2,lmio))oj=mod(oj+ny-1,ny)+1
                   if(intpbc_dir(3,lmio))ok=mod(ok+nz-1,nz)+1
-                  rho(i,j,k)=rho(oi,oj,ok)
+                  phi(i,j,k)=phi(oi,oj,ok)
                enddo
             enddo
          enddo
@@ -2136,21 +2478,21 @@ contains
       integer :: l,ll,myoffset,tag,ierr
 
       do l=1,nlinksmpi
-         if(ldest_dir(l))call packaging_float_buffmpi(l)
+         if(lsend_dir(l))call packaging_float_buffmpi(l)
       enddo
-      !f_source_buffmpi=f_dest_buffmpi
+      !f_recv_buffmpi=f_send_buffmpi
 #ifdef MPI
       do l=1,nlinksmpi
          ll=(l+1)/2
-         if(ldest_dir(l))then
-            myoffset=f_nbuffmpi_dest(l)
-            call mpi_isend(f_dest_buffmpi(myoffset),1,f_datampi(ll),dest_dir(l), &
-               f_mpitag(l),lbecomm,f_reqs_dest(l),ierr)
+         if(lsend_dir(l))then
+            myoffset=f_nbuffmpi_send(l)
+            call mpi_isend(f_send_buffmpi(myoffset),1,f_datampi(ll),send_dir(l), &
+               f_mpitag(l),lbecomm,f_reqs_send(l),ierr)
          endif
-         if(lsource_dir(l))then
-            myoffset=f_nbuffmpi_source(l)
-            call mpi_irecv(f_source_buffmpi(myoffset),1,f_datampi(ll),source_dir(l), &
-               f_mpitag(l),lbecomm,f_reqs_source(l),ierr)
+         if(lrecv_dir(l))then
+            myoffset=f_nbuffmpi_recv(l)
+            call mpi_irecv(f_recv_buffmpi(myoffset),1,f_datampi(ll),recv_dir(l), &
+               f_mpitag(l),lbecomm,f_reqs_recv(l),ierr)
          endif
       enddo
 #endif
@@ -2163,29 +2505,29 @@ contains
       implicit none
 
       integer :: l,ll,myoffset,tag,ierr
-      integer, dimension(nlinksmpi) :: ierr_dest,ierr_source
+      integer, dimension(nlinksmpi) :: ierr_send,ierr_recv
 #ifdef MPI
-      integer, dimension(MPI_STATUS_SIZE) :: status_dest,status_source
+      integer, dimension(MPI_STATUS_SIZE) :: status_send,status_recv
 #endif
 
-      ierr_dest=0
-      ierr_source=0
+      ierr_send=0
+      ierr_recv=0
 #ifdef MPI
       do l=1,nlinksmpi
          ll=(l+1)/2
-         if(ldest_dir(l))then
-            call mpi_wait(f_reqs_dest(l),status_dest,ierr_dest(l))
+         if(lsend_dir(l))then
+            call mpi_wait(f_reqs_send(l),status_send,ierr_send(l))
          endif
-         if(lsource_dir(l))then
-            call mpi_wait(f_reqs_source(l),status_source,ierr_source(l))
+         if(lrecv_dir(l))then
+            call mpi_wait(f_reqs_recv(l),status_recv,ierr_recv(l))
          endif
       enddo
 #endif
-      if(any(ierr_dest.ne.0))call doerror(6,'ERROR in mpi_wait dest')
-      if(any(ierr_source.ne.0))call doerror(6,'ERROR in mpi_wait source')
+      if(any(ierr_send.ne.0))call doerror(6,'ERROR in mpi_wait send')
+      if(any(ierr_recv.ne.0))call doerror(6,'ERROR in mpi_wait recv')
 
       do l=1,nlinksmpi
-         if(lsource_dir(l))call depackaging_float_buffmpi(l)
+         if(lrecv_dir(l))call depackaging_float_buffmpi(l)
       enddo
 
    end subroutine exchange_float_wait
@@ -2201,23 +2543,23 @@ contains
 
       integer :: idx
 
-      myoffset=f_nbuffmpi_dest(lmio)
-      m1=f_dest_extr(2,lmio)-f_dest_extr(1,lmio)+1
-      m2=f_dest_extr(4,lmio)-f_dest_extr(3,lmio)+1
-      m3=f_dest_extr(6,lmio)-f_dest_extr(5,lmio)+1
+      myoffset=f_nbuffmpi_send(lmio)
+      m1=f_send_extr(2,lmio)-f_send_extr(1,lmio)+1
+      m2=f_send_extr(4,lmio)-f_send_extr(3,lmio)+1
+      m3=f_send_extr(6,lmio)-f_send_extr(5,lmio)+1
       !scorro sul numero di campi da prendere (per scalare = 1)
       ll=1
-      !$acc kernels present(f_dest_buffmpi,rho,f_dest_extr)
+      !$acc kernels present(f_send_buffmpi,phi,f_send_extr)
       !$acc loop independent collapse(3)  private(i,j,k,idx)
-      do k=f_dest_extr(5,lmio),f_dest_extr(6,lmio)
-         do j=f_dest_extr(3,lmio),f_dest_extr(4,lmio)
-            do i=f_dest_extr(1,lmio),f_dest_extr(2,lmio)
+      do k=f_send_extr(5,lmio),f_send_extr(6,lmio)
+         do j=f_send_extr(3,lmio),f_send_extr(4,lmio)
+            do i=f_send_extr(1,lmio),f_send_extr(2,lmio)
                !linearizzo con l'ordine naturale e metto nel buffer unico per tutte le direzioni
                !poi mandero solo i pezzi contigui che mi servono per la data direzione
-               idx=myoffset+(i-f_dest_extr(1,lmio))+(j-f_dest_extr(3,lmio))*m1+(&
-                  k-f_dest_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
+               idx=myoffset+(i-f_send_extr(1,lmio))+(j-f_send_extr(3,lmio))*m1+(&
+                  k-f_send_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
 
-               f_dest_buffmpi(idx)=rho(i,j,k)
+               f_send_buffmpi(idx)=phi(i,j,k)
             enddo
          enddo
       enddo
@@ -2237,23 +2579,23 @@ contains
 
       integer :: idx
 
-      myoffset=f_nbuffmpi_source(lmio)
-      m1=f_source_extr(2,lmio)-f_source_extr(1,lmio)+1
-      m2=f_source_extr(4,lmio)-f_source_extr(3,lmio)+1
-      m3=f_source_extr(6,lmio)-f_source_extr(5,lmio)+1
+      myoffset=f_nbuffmpi_recv(lmio)
+      m1=f_recv_extr(2,lmio)-f_recv_extr(1,lmio)+1
+      m2=f_recv_extr(4,lmio)-f_recv_extr(3,lmio)+1
+      m3=f_recv_extr(6,lmio)-f_recv_extr(5,lmio)+1
       !scorro sul numero di campi da prendere (per scalare = 1)
       ll=1
-      !$acc kernels present(f_source_buffmpi,rho,f_source_extr)
+      !$acc kernels present(f_recv_buffmpi,phi,f_recv_extr)
       !$acc loop independent collapse(3)  private(i,j,k,idx)
-      do k=f_source_extr(5,lmio),f_source_extr(6,lmio)
-         do j=f_source_extr(3,lmio),f_source_extr(4,lmio)
-            do i=f_source_extr(1,lmio),f_source_extr(2,lmio)
+      do k=f_recv_extr(5,lmio),f_recv_extr(6,lmio)
+         do j=f_recv_extr(3,lmio),f_recv_extr(4,lmio)
+            do i=f_recv_extr(1,lmio),f_recv_extr(2,lmio)
                !linearizzo con l'ordine naturale e metto nel buffer unico per tutte le direzioni
                !poi mandero solo i pezzi contigui che mi servono per la data direzione
-               idx=myoffset+(i-f_source_extr(1,lmio))+(j-f_source_extr(3,lmio))*m1+(&
-                  k-f_source_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
+               idx=myoffset+(i-f_recv_extr(1,lmio))+(j-f_recv_extr(3,lmio))*m1+(&
+                  k-f_recv_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
 
-               rho(i,j,k)=f_source_buffmpi(idx)
+               phi(i,j,k)=f_recv_buffmpi(idx)
             enddo
          enddo
       enddo
@@ -2262,7 +2604,7 @@ contains
 
    end subroutine depackaging_float_buffmpi
 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!ISFLUID!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    subroutine exchange_isf_intpbc
 
       implicit none
@@ -2271,13 +2613,13 @@ contains
 
       do lmio=1,nlinksmpi
          if(.not. lintpbc_dir(lmio))cycle
-         do k=f_source_extr(5,lmio),f_source_extr(6,lmio)
+         do k=f_recv_extr(5,lmio),f_recv_extr(6,lmio)
             ok=k
             if(intpbc_dir(3,lmio))ok=mod(ok+nz-1,nz)+1
-            do j=f_source_extr(3,lmio),f_source_extr(4,lmio)
+            do j=f_recv_extr(3,lmio),f_recv_extr(4,lmio)
                oj=j
                if(intpbc_dir(2,lmio))oj=mod(oj+ny-1,ny)+1
-               do i=f_source_extr(1,lmio),f_source_extr(2,lmio)
+               do i=f_recv_extr(1,lmio),f_recv_extr(2,lmio)
                   oi=i
                   if(intpbc_dir(1,lmio))oi=mod(oi+nx-1,nx)+1
                   isfluid(i,j,k)=isfluid(oi,oj,ok)
@@ -2295,21 +2637,21 @@ contains
       integer :: l,ll,myoffset,tag,ierr
 
       do l=1,nlinksmpi
-         if(ldest_dir(l))call packaging_isf_buffmpi(l)
+         if(lsend_dir(l))call packaging_isf_buffmpi(l)
       enddo
-      !i_source_buffmpi=i_dest_buffmpi
+      !i_recv_buffmpi=i_send_buffmpi
 #ifdef MPI
       do l=1,nlinksmpi
          ll=(l+1)/2
-         if(ldest_dir(l))then
-            myoffset=i_nbuffmpi_dest(l)
-            call mpi_isend(i_dest_buffmpi(myoffset),1,i_datampi(ll),dest_dir(l), &
-               i_mpitag(l),lbecomm,i_reqs_dest(l),ierr)
+         if(lsend_dir(l))then
+            myoffset=i_nbuffmpi_send(l)
+            call mpi_isend(i_send_buffmpi(myoffset),1,i_datampi(ll),send_dir(l), &
+               i_mpitag(l),lbecomm,i_reqs_send(l),ierr)
          endif
-         if(lsource_dir(l))then
-            myoffset=i_nbuffmpi_source(l)
-            call mpi_irecv(i_source_buffmpi(myoffset),1,i_datampi(ll),source_dir(l), &
-               i_mpitag(l),lbecomm,i_reqs_source(l),ierr)
+         if(lrecv_dir(l))then
+            myoffset=i_nbuffmpi_recv(l)
+            call mpi_irecv(i_recv_buffmpi(myoffset),1,i_datampi(ll),recv_dir(l), &
+               i_mpitag(l),lbecomm,i_reqs_recv(l),ierr)
          endif
       enddo
 #endif
@@ -2322,29 +2664,29 @@ contains
       implicit none
 
       integer :: l,ll,myoffset,tag,ierr
-      integer, dimension(nlinksmpi) :: ierr_dest,ierr_source
+      integer, dimension(nlinksmpi) :: ierr_send,ierr_recv
 #ifdef MPI
-      integer, dimension(MPI_STATUS_SIZE) :: status_dest,status_source
+      integer, dimension(MPI_STATUS_SIZE) :: status_send,status_recv
 #endif
 
-      ierr_dest=0
-      ierr_source=0
+      ierr_send=0
+      ierr_recv=0
 #ifdef MPI
       do l=1,nlinksmpi
          ll=(l+1)/2
-         if(ldest_dir(l))then
-            call mpi_wait(i_reqs_dest(l),status_dest,ierr_dest(l))
+         if(lsend_dir(l))then
+            call mpi_wait(i_reqs_send(l),status_send,ierr_send(l))
          endif
-         if(lsource_dir(l))then
-            call mpi_wait(i_reqs_source(l),status_source,ierr_source(l))
+         if(lrecv_dir(l))then
+            call mpi_wait(i_reqs_recv(l),status_recv,ierr_recv(l))
          endif
       enddo
 #endif
-      if(any(ierr_dest.ne.0))call doerror(6,'ERROR in mpi_wait dest')
-      if(any(ierr_source.ne.0))call doerror(6,'ERROR in mpi_wait source')
+      if(any(ierr_send.ne.0))call doerror(6,'ERROR in mpi_wait send')
+      if(any(ierr_recv.ne.0))call doerror(6,'ERROR in mpi_wait recv')
 
       do l=1,nlinksmpi
-         if(lsource_dir(l))call depackaging_isf_buffmpi(l)
+         if(lrecv_dir(l))call depackaging_isf_buffmpi(l)
       enddo
 
    end subroutine exchange_isf_wait
@@ -2360,21 +2702,21 @@ contains
 
       integer :: idx
 
-      myoffset=i_nbuffmpi_dest(lmio)
-      m1=f_dest_extr(2,lmio)-f_dest_extr(1,lmio)+1
-      m2=f_dest_extr(4,lmio)-f_dest_extr(3,lmio)+1
-      m3=f_dest_extr(6,lmio)-f_dest_extr(5,lmio)+1
+      myoffset=i_nbuffmpi_send(lmio)
+      m1=f_send_extr(2,lmio)-f_send_extr(1,lmio)+1
+      m2=f_send_extr(4,lmio)-f_send_extr(3,lmio)+1
+      m3=f_send_extr(6,lmio)-f_send_extr(5,lmio)+1
       !scorro sul numero di campi da prendere (per scalare = 1)
       ll=1
-      do k=f_dest_extr(5,lmio),f_dest_extr(6,lmio)
-         do j=f_dest_extr(3,lmio),f_dest_extr(4,lmio)
-            do i=f_dest_extr(1,lmio),f_dest_extr(2,lmio)
+      do k=f_send_extr(5,lmio),f_send_extr(6,lmio)
+         do j=f_send_extr(3,lmio),f_send_extr(4,lmio)
+            do i=f_send_extr(1,lmio),f_send_extr(2,lmio)
                !linearizzo con l'ordine naturale e metto nel buffer unico per tutte le direzioni
                !poi mandero solo i pezzi contigui che mi servono per la data direzione
-               idx=myoffset+(i-f_dest_extr(1,lmio))+(j-f_dest_extr(3,lmio))*m1+(&
-                  k-f_dest_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
+               idx=myoffset+(i-f_send_extr(1,lmio))+(j-f_send_extr(3,lmio))*m1+(&
+                  k-f_send_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
 
-               i_dest_buffmpi(idx)=isfluid(i,j,k)
+               i_send_buffmpi(idx)=isfluid(i,j,k)
             enddo
          enddo
       enddo
@@ -2394,21 +2736,21 @@ contains
 
       integer :: idx
 
-      myoffset=i_nbuffmpi_source(lmio)
-      m1=f_source_extr(2,lmio)-f_source_extr(1,lmio)+1
-      m2=f_source_extr(4,lmio)-f_source_extr(3,lmio)+1
-      m3=f_source_extr(6,lmio)-f_source_extr(5,lmio)+1
+      myoffset=i_nbuffmpi_recv(lmio)
+      m1=f_recv_extr(2,lmio)-f_recv_extr(1,lmio)+1
+      m2=f_recv_extr(4,lmio)-f_recv_extr(3,lmio)+1
+      m3=f_recv_extr(6,lmio)-f_recv_extr(5,lmio)+1
       !scorro sul numero di campi da prendere (per scalare = 1)
       ll=1
-      do k=f_source_extr(5,lmio),f_source_extr(6,lmio)
-         do j=f_source_extr(3,lmio),f_source_extr(4,lmio)
-            do i=f_source_extr(1,lmio),f_source_extr(2,lmio)
+      do k=f_recv_extr(5,lmio),f_recv_extr(6,lmio)
+         do j=f_recv_extr(3,lmio),f_recv_extr(4,lmio)
+            do i=f_recv_extr(1,lmio),f_recv_extr(2,lmio)
                !linearizzo con l'ordine naturale e metto nel buffer unico per tutte le direzioni
                !poi mandero solo i pezzi contigui che mi servono per la data direzione
-               idx=myoffset+(i-f_source_extr(1,lmio))+(j-f_source_extr(3,lmio))*m1+(&
-                  k-f_source_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
+               idx=myoffset+(i-f_recv_extr(1,lmio))+(j-f_recv_extr(3,lmio))*m1+(&
+                  k-f_recv_extr(5,lmio))*(m1*m2)+(ll-1)*(m1*m2*m3)
 
-               isfluid(i,j,k)=i_source_buffmpi(idx)
+               isfluid(i,j,k)=i_recv_buffmpi(idx)
             enddo
          enddo
       enddo

@@ -41,7 +41,7 @@ module vars
    real(kind=db) :: visc_LB,uu,udotc,omega,radius
    real(kind=db) :: tau,one_ov_nu,fx,fy,fz,temp,dumpYN
 
-   real(kind=db) :: fneq1,feq,feqs,us,vs,ws
+   real(kind=db) :: fneq1,feq,us,vs,ws
 
    integer, parameter :: nlinks=26
    !lattice vectors
