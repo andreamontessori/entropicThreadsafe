@@ -631,7 +631,7 @@ program recursiveTSLB3D
                           ffy_s=sigma*curvature*normy(i,j,k)
                           ffz_s=sigma*curvature*normz(i,j,k)
                           
-						              us=u(i,j,k)+ffx_s
+						  us=u(i,j,k)+ffx_s
                           vs=v(i,j,k)+ffy_s
                           ws=w(i,j,k)+ffz_s
                           !0
