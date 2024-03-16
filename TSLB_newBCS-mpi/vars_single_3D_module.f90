@@ -126,7 +126,7 @@ module vars
 contains
 
    pure function gauss_noseeded(i,j,k,l)
-      !$acc routine gang
+      !$acc routine seq
       !questo sopra serve per dire ad openacc di fare una copia sul device e gang significa che può essere chiamata da più threads/vector/worker/gangbang indipendentemente ad cazzum
       implicit none
       integer, intent(in) :: i,j,k,l
@@ -150,7 +150,7 @@ contains
    end function gauss_noseeded
 
    pure function rand_noseeded(i,j,k,l)
-      !$acc routine gang
+      !$acc routine seq !!!not gang
       !questo sopra serve per dire ad openacc di fare una copia sul device e gang significa che può essere chiamata da più threads/vector/worker/gangbang indipendentemente ad cazzum
       implicit none
       integer, intent(in) :: i,j,k,l

@@ -38,11 +38,13 @@ program recursiveTSLB3D
    devNum=acc_get_device_num(devType)
 #endif
 
-
+   !relaxation time
    tau=0.5004_db
-
+   omega=1.0_db/tau
+   ! viscosity
    visc_LB=cssq*(tau-0.5_db)
    one_ov_nu=1.0_db/visc_LB
+   !dump in
    dumpYN=0
 
 
@@ -53,19 +55,19 @@ program recursiveTSLB3D
 #endif
 
    !*******************************user parameters and allocations**************************
-   lx=400
-   ly=400
-   lz=600
-   nsteps=2000
-   stamp=1000
-   stamp2D=1000
-   dumpstep=100000000
+   lx=500
+   ly=500
+   lz=2048
+   nsteps=1000000
+   stamp=10000
+   stamp2D=2000
+   dumpstep=500000
    fx=0.0_db*10.0**(-7)
    fy=0.0_db*10.0**(-5)
-   fz=0.0_db*10.0**(-5)
+   fz=0.0_db*10.0**(-7)
    uwall=0.05
-   radius=20.0
-   lprint=.false.
+   radius=50.0
+   lprint=.true.
    lvtk=.false.
    lraw=.true.
    lasync=.false.
@@ -85,7 +87,7 @@ program recursiveTSLB3D
    pbc_y=1
    pbc_z=0
 
-   !!DECIDI DECOMPOSIZIONE MPI
+   !!DECIDI DECOMPOSIZIONE MPI: don't change, if mpi proc_j is set at command line
    proc_x=1
    proc_y=1
    proc_z=1
@@ -121,7 +123,7 @@ program recursiveTSLB3D
    enddo
 #endif
 
-   !!!!!!! START MPI!!!!!!!!!!!!!!!!!!!
+   !!!!!!! START MPI!!!!!!!!!
    call start_mpi
 
    ! start diagnostic if requested
@@ -141,8 +143,8 @@ program recursiveTSLB3D
    allocate(rho(1:nx,1:ny,1:nz),u(1:nx,1:ny,1:nz),v(1:nx,1:ny,1:nz),w(1:nx,1:ny,1:nz))
    allocate(pxx(1:nx,1:ny,1:nz),pxy(1:nx,1:ny,1:nz),pxz(1:nx,1:ny,1:nz),pyy(1:nx,1:ny,1:nz))
    allocate(pyz(1:nx,1:ny,1:nz),pzz(1:nx,1:ny,1:nz))
-   allocate(phi(0:nx+1,0:ny+1,0:nz+1))
-   allocate(g(0:nx+1,0:ny+1,0:nz+1,0:nlinks_advc))
+   !allocate(phi(0:nx+1,0:ny+1,0:nz+1))
+   !allocate(g(0:nx+1,0:ny+1,0:nz+1,0:nlinks_advc))
    allocate(isfluid(0:nx+1,0:ny+1,0:nz+1))
    if(lprint)then
       allocate(rhoprint(1:nx,1:ny,1:nz))
@@ -153,9 +155,7 @@ program recursiveTSLB3D
    !ex=(/0, 1, -1, 0,  0,  0,  0,  1,  -1,  1,  -1,  0,   0,  0,   0,  1,  -1,  -1,   1/)
    !ey=(/0, 0,  0, 1, -1,  0,  0,  1,  -1, -1,   1,  1,  -1,  1,  -1,  0,   0,   0,   0/)
    !ez=(/0, 0,  0, 0,  0,  1, -1,  0,   0,  0,   0,  1,  -1, -1,   1,  1,  -1,   1,  -1/)
-
-   omega=1.0_db/tau
-   !*****************************************geometry************************
+   !*****************************geometry************************************************
    isfluid=1
    do k=1,nz
       gk=nz*coords(3)+k
@@ -163,8 +163,8 @@ program recursiveTSLB3D
          gj=ny*coords(2)+j
          do i=1,nx
             gi=nx*coords(1)+i
-!                if(gi==1)isfluid(i,j,k)=0   !left
-!                if(gi==lx)isfluid(i,j,k)=0  !right
+                !if(gi==1)isfluid(i,j,k)=0   !left
+                !if(gi==lx)isfluid(i,j,k)=0  !right
 !                if(gj==1)isfluid(i,j,k)=0   !front
 !                if(gj==ly)isfluid(i,j,k)=0  !rear
             if(gk==1)  isfluid(i,j,k)=0   !bottom
@@ -173,15 +173,14 @@ program recursiveTSLB3D
       enddo
    enddo
 
-   !setup domain decomposition omong MPI process
-   !******************************(solo all'inizio)************************
+   !setup domain decomposition among MPI process
+   !******************************(only once at the beginning)************************
    call exchange_isf_sendrecv
    call exchange_isf_intpbc
    call exchange_isf_wait
 
    !*************************************initial conditions ************************
    call initial_conditions
-
    !*************************************check data ************************
    if(myrank==0)then
 #ifdef MPI
@@ -215,14 +214,14 @@ program recursiveTSLB3D
          'total DEVICE memory',mymemory,totmemory)
       call flush(6)
    endif
-
+   !*************************************copy data on device*****************
    !$acc data copy(step,lx,ly,lz,nx,ny,nz,coords,myoffset,f,isfluid, &
    !$acc& pxx,pyy,pzz,pxy,pxz,pyz,rho,u,v,w,rhoprint,velprint, &
    !$acc& intpbc_dir,num_links_pops,links_pops,datampi,f_datampi,uwall, &
    !$acc& send_extr,recv_extr,f_send_extr,f_recv_extr) &
    !$acc& create(send_buffmpi,recv_buffmpi,f_send_buffmpi, &
    !$acc& f_recv_buffmpi)
-
+	! quali sono i buff effettivamente da tenere?
 
 
 
@@ -262,7 +261,7 @@ program recursiveTSLB3D
       endif
       if(lraw)then
          call driver_print_raw_sync(iframe)
-         !scrivi i piani 2D
+         !2d planes print
          call driver_print_raw_sync2D(iframe2D,nplanes,ndir,npoint)
       endif
    endif
@@ -286,11 +285,11 @@ program recursiveTSLB3D
       call moments_TSLB
       if(ldiagnostic)call end_timing2("LB","moments")
       !
-      if(ldiagnostic)call start_timing2("LB","pbcs_phi")
-      call exchange_float_sendrecv
-      call exchange_float_intpbc
-      call exchange_float_wait
-      if(ldiagnostic)call end_timing2("LB","pbcs_phi")
+      !if(ldiagnostic)call start_timing2("LB","pbcs_phi")
+      !call exchange_float_sendrecv
+      !call exchange_float_intpbc
+      !call exchange_float_wait
+      !if(ldiagnostic)call end_timing2("LB","pbcs_phi")
       !
       !***********************************Print on files 3D************************
       if(mod(step,stamp).eq.0 .or. mod(step,stamp2D).eq.0)then
@@ -349,15 +348,15 @@ program recursiveTSLB3D
       !***********************************pbcs boundary conditions ********************************!
       !call pbcs
       if(ldiagnostic)call start_timing2("LB","pbcs")
-      call exchange_pops_sendrecv
-      call exchange_pops_intpbc
-      call exchange_pops_wait
+	  call exchange_pops_sendrecv
+	  call exchange_pops_intpbc
+	  call exchange_pops_wait
       if(ldiagnostic)call end_timing2("LB","pbcs")
-      if(ldiagnostic)call start_timing2("LB","pbcs_advc")
-      call exchange_pops_advc_sendrecv
-      call exchange_pops_advc_intpbc
-      call exchange_pops_advc_wait
-      if(ldiagnostic)call end_timing2("LB","pbcs_advc")
+      !if(ldiagnostic)call start_timing2("LB","pbcs_advc")
+      !call exchange_pops_advc_sendrecv
+      !call exchange_pops_advc_intpbc
+      !call exchange_pops_advc_wait
+      !if(ldiagnostic)call end_timing2("LB","pbcs_advc")
       ! thread-safe boundary condition setup
       if(ldiagnostic)call start_timing2("LB","bcs_TSLB")
       call bcs_turbulent_jet_meso

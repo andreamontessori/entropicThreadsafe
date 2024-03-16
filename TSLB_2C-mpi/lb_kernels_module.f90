@@ -416,7 +416,7 @@ contains
       implicit none
 
       !$acc kernels
-      !$acc loop collapse(3) private(feq,uu,temp,udotc)
+      !$acc loop collapse(3) private(feq,fneq1,uu,temp,udotc)
       do k=1,nz
          do j=1,ny
             do i=1,nx
@@ -943,6 +943,7 @@ contains
       u=0.0_db
       v=0.0_db
       w=0.0_db
+	  rho=1.0_db  !tot dens
       !devo trovare quali processi hanno in carico i nodi lungo il piano gk=1
       gk=1
       !subchords(1)=(gi-1)/nx
@@ -968,12 +969,12 @@ contains
                   !invece se tu hai un unico seed lo devi mettere in save per tutti i threads e poi dipende da chi chiama prima (dipende dall'ordine di chiamata)
                   rrx=rand_noseeded(gi,gj,gk,524)
                   rry=rand_noseeded(gi,gj,gk,1732)
-                  w(i,j,k)=uwall + 0.02*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
+                  w(i,j,k)=uwall + 0.004*sqrt(-2.0*log(rry))*cos(2*3.1415926535897932384626433832795028841971*rrx)
                endif
             enddo
          enddo
       endif
-      rho=1.0_db  !tot dens
+      
 
       !rho(nx/2,ny/2,nz-10)=1.2
       !do ll=0,nlinks

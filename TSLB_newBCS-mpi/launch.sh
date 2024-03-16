@@ -11,5 +11,5 @@
 module load nvhpc/23.1
 module load openmpi/4.1.4--nvhpc--23.1-cuda-11.8
 #mpirun --mca orte_base_help_aggregate 0 --mca btl_base_warn_component_unused 0 -np 4 ./main.x 1 1 4 
-mpirun -np 4 ./main.x 1 1 4
+mpirun -np 1 ./main.x 1 1 1
 # 1 MPI task, 1 GPU

@@ -1257,7 +1257,7 @@ contains
                      !call random_number(rrx)
                      !sto sul piano gk=1
                      gk=1
-                     !myoffset(3) è il mio offset lungo z del mio sottodominio MPI e mi ridà il valore di k nel sottodominio
+                     !myoffset(3) è il mio offset lungo z del mio sottodominio mpi e mi ridà il valore di k nel sottodominio
                      k=gk-myoffset(3)
                      !è uno pseudo generatore che da un numero randomico partendo da 4 integer come seed
                      !devi fare in modo che ogni lattice point ad ogni time step abbia seed diversi
@@ -1274,7 +1274,7 @@ contains
          endif
 
 
-         !$acc kernels present(rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz,myoffset,f) async
+         !$acc kernels present(rho,u,v,w,pxx,pxy,pxz,pyy,pyz,pzz,myoffset,f) !!async
          !$acc loop independent collapse(2) private(i,j,k,gk,feq,fneq1)
          do j=1,ny
             !!$acc loop independent
@@ -1287,7 +1287,6 @@ contains
                !davanti a me è k+1
 
                !5
-               !w(i,j,k)=uwall + 0.02*sqrt(-2.0*log(ranx(ttt)))*cos(2*3.1415926535897932384626433832795028841971*rany(ttt))
                feq=(rho(i,j,k+1)*(2 + 6*w(i,j,k)*(1 + w(i,j,k)) - 3*u(i,j,k)**2*(1 + 3*w(i,j,k)) - 3*v(i,j,k)**2*(1 + 3*w(i,j,k))))/27.
                fneq1=(-3*(pxx(i,j,k+1) + pyy(i,j,k+1) - 2*pzz(i,j,k+1) + 6*pxz(i,j,k+1)*u(i,j,k+1) + 6*pyz(i,j,k+1)*v(i,j,k+1) + 3*pxx(i,j,k+1)*w(i,j,k+1) + 3*pyy(i,j,k+1)*w(i,j,k+1)))/2.
                f(i,j,k+1,5)=feq + (1-omega)*p1*fneq1
@@ -1363,9 +1362,8 @@ contains
                !myoffset(3) è il mio offset lungo z del mio sottodominio MPI e mi ridà il valore di k nel sottodominio
                k=gk-myoffset(3)!gk-myoffset(3)
                !dietro a me è k-1
-
                !6
-               w(i,j,k)=w(i,j,nz-1)
+               w(i,j,k)=w(i,j,k-1)
                feq=(rho(i,j,k-1)*(2 + 6*(-1 + w(i,j,k))*w(i,j,k) + u(i,j,k)**2*(-3 + 9*w(i,j,k)) + v(i,j,k)**2*(-3 + 9*w(i,j,k))))/27.
                fneq1=(3*(-pyy(i,j,k-1) + 2*pzz(i,j,k-1) + 6*pxz(i,j,k-1)*u(i,j,k-1) + 6*pyz(i,j,k-1)*v(i,j,k-1) + 3*pyy(i,j,k-1)*w(i,j,k-1) + pxx(i,j,k-1)*(-1 + 3*w(i,j,k-1))))/2.
                f(i,j,k-1,6)=feq + (1-omega)*fneq1*p1
